@@ -822,6 +822,116 @@ curl -X POST http://127.0.0.1:8000/api/v1/moderation/reports/<report_id>/decisio
   -d "{\"action\":\"approve\",\"reason\":\"Policy violation confirmed\"}"
 ```
 
+### 3.15 Admin list/search users
+
+**Thông tin chung**
+
+- Method: `GET`
+- Path: `/api/v1/admin/users`
+- Operation ID: `admin_list_users`
+- Full URL mẫu: `http://127.0.0.1:8000/api/v1/admin/users?search=Managed`
+- Chức năng: Admin xem danh sách user và tìm theo email/display name.
+- Module: Admin Management
+- Authentication: Bearer JWT
+- Role/permission: `admin`
+- Trạng thái xác minh: **Đã test** — Admin Management Newman.
+
+**Parameters and headers**
+
+- Query `search`: string, không bắt buộc; tìm theo `email` hoặc `display_name`.
+- Không có path parameter hoặc request body.
+- Header: `Authorization: Bearer <admin_token>`.
+
+**Response và lỗi**
+
+- HTTP `200`, mảng user summary gồm `id`, `display_name`, `role`, `is_active`,
+  `created_at`.
+- `401` token thiếu/sai hoặc user inactive; `403` không phải admin.
+
+```bash
+curl "http://127.0.0.1:8000/api/v1/admin/users?search=Managed" ^
+  -H "Authorization: Bearer <admin_token>"
+```
+
+### 3.16 Admin xem chi tiết user
+
+- Method: `GET`
+- Path: `/api/v1/admin/users/{user_id}`
+- Operation ID: `admin_get_user`
+- Authentication: Bearer JWT, role `admin`
+- Response: HTTP `200`, gồm summary và `email`.
+- Path `user_id`: UUID, bắt buộc.
+- Request body/query: Không có.
+- Lỗi: `401`, `403`, `404` nếu user không tồn tại, hoặc `422` nếu UUID sai.
+- Trạng thái xác minh: **Đã test** — Admin Management Newman.
+
+```bash
+curl http://127.0.0.1:8000/api/v1/admin/users/<user_id> ^
+  -H "Authorization: Bearer <admin_token>"
+```
+
+### 3.17 Admin khóa hoặc mở user
+
+- Method: `PATCH`
+- Path: `/api/v1/admin/users/{user_id}/status`
+- Operation ID: `admin_update_user_status`
+- Authentication: Bearer JWT, role `admin`
+- Path `user_id`: UUID, bắt buộc.
+- Content-Type: `application/json`
+- Body: `{"is_active": false}` hoặc `{"is_active": true}`; `is_active` bắt buộc
+  là boolean.
+- Response: HTTP `200`, user detail sau cập nhật.
+- Lỗi: `400` nếu admin tự khóa chính mình; `401`, `403`, `404`, `422` theo auth,
+  quyền, ID và schema.
+- Trạng thái xác minh: **Đã test** — Admin Management Newman.
+
+```bash
+curl -X PATCH http://127.0.0.1:8000/api/v1/admin/users/<user_id>/status ^
+  -H "Authorization: Bearer <admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"is_active\":false}"
+```
+
+### 3.18 Admin xem danh sách moderator
+
+- Method: `GET`
+- Path: `/api/v1/admin/moderators`
+- Operation ID: `admin_list_moderators`
+- Authentication: Bearer JWT, role `admin`
+- Path/query/body: Không có.
+- Response: HTTP `200`, mảng user summary có role `moderator` hoặc `admin`.
+- Lỗi: `401` hoặc `403`.
+- Trạng thái xác minh: **Đã test** — Admin Management Newman.
+
+```bash
+curl http://127.0.0.1:8000/api/v1/admin/moderators ^
+  -H "Authorization: Bearer <admin_token>"
+```
+
+### 3.19 Admin cấp hoặc thu hồi role
+
+- Method: `PATCH`
+- Path: `/api/v1/admin/users/{user_id}/role`
+- Operation ID: `admin_update_user_role`
+- Authentication: Bearer JWT, role `admin`
+- Path `user_id`: UUID, bắt buộc.
+- Content-Type: `application/json`
+- Body: `{"role":"user"}`, `{"role":"moderator"}` hoặc `{"role":"admin"}`.
+- Response: HTTP `200`, user detail sau cập nhật.
+- Lỗi: `400` nếu admin tự thu hồi quyền admin; `401`, `403`, `404`, `422` theo
+  auth, quyền, ID và enum.
+- Trạng thái xác minh: **Đã test** — Admin Management Newman đã cấp role
+  `moderator`.
+- SRS còn thiếu: `Senior Moderator`, audit log, notification, session revoke
+  và unassign công việc locked chưa được code.
+
+```bash
+curl -X PATCH http://127.0.0.1:8000/api/v1/admin/users/<user_id>/role ^
+  -H "Authorization: Bearer <admin_token>" ^
+  -H "Content-Type: application/json" ^
+  -d "{\"role\":\"moderator\"}"
+```
+
 ## 4. Luồng gọi API thực tế
 
 ### 4.1 Tạo user và đọc profile
@@ -870,10 +980,15 @@ curl -X POST http://127.0.0.1:8000/api/v1/moderation/reports/<report_id>/decisio
 | 12 | POST | `/api/v1/moderation/videos/{video_id}/decision` | Moderation | JWT + mod/admin | Code/OpenAPI |
 | 13 | GET | `/api/v1/moderation/reports` | Moderation | JWT + mod/admin | Đã test |
 | 14 | POST | `/api/v1/moderation/reports/{report_id}/decision` | Moderation | JWT + mod/admin | Đã test |
+| 15 | GET | `/api/v1/admin/users` | Admin Management | JWT + admin | Đã test |
+| 16 | GET | `/api/v1/admin/users/{user_id}` | Admin Management | JWT + admin | Đã test |
+| 17 | PATCH | `/api/v1/admin/users/{user_id}/status` | Admin Management | JWT + admin | Đã test |
+| 18 | GET | `/api/v1/admin/moderators` | Admin Management | JWT + admin | Đã test |
+| 19 | PATCH | `/api/v1/admin/users/{user_id}/role` | Admin Management | JWT + admin | Đã test |
 
 ## 6. Đối chiếu và giới hạn
 
-- OpenAPI runtime đã trả đúng 13 path và 14 operation như bảng trên.
+- OpenAPI runtime sau thay đổi đã trả 18 path và 19 operation như bảng trên.
 - Không có router khác được đăng ký trong application hiện tại.
 - Không có query pagination, search hoặc filter trong các endpoint list.
 - Không có endpoint lấy file video/streaming; `storage_path` không được trả ra

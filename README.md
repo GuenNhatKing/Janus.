@@ -14,6 +14,25 @@ Backend MVP cho nền tảng video ngắn có AI gợi ý nhãn và quy trình k
 
 Appeal, email notification, dashboard analytics, Celery/Redis và AI/STT thật chưa nằm trong MVP.
 
+### Kiểm thử upload bằng video thật (local only)
+
+Nếu workspace có thư mục `TestDataset`, pytest sẽ tự chọn file `.mp4` đầu tiên
+trong thư mục này. Backend kiểm tra MP4 magic bytes, brand và codec video được
+hỗ trợ trước khi lưu vào `UPLOAD_DIR` local. Hiện tại adapter AI chỉ là
+`run_mock_analysis`; không có Cloud Storage hoặc API AI bên ngoài.
+
+Chạy kiểm thử:
+
+```powershell
+cd E:\PBL6\backend
+.\.venv\Scripts\python.exe -m pytest -q
+cd E:\PBL6
+newman run .\local-tests\postman\video-upload_v1.0.0.postman_collection.json `
+  --env-var "base_url=http://127.0.0.1:8000"
+```
+
+Video trong `TestDataset` và các fixture/log Postman local không được commit.
+
 ## Thiết lập PostgreSQL trên Windows 10/11
 
 Phần này mô tả quy trình từ máy chưa có PostgreSQL đến khi Backend truy vấn

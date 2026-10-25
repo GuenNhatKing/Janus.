@@ -2,7 +2,7 @@ from pathlib import Path
 from uuid import UUID
 
 from fastapi import BackgroundTasks, Depends, FastAPI, File, HTTPException, UploadFile, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
@@ -11,6 +11,10 @@ from app.dependencies import current_user, require_roles
 from app.models import AIJob, Label, ModerationAction, ModerationReview, Report, ReportStatus, User, UserRole, Video, VideoStatus
 from app.schemas import (
     AIResultResponse,
+    AdminRoleUpdate,
+    AdminUserDetail,
+    AdminUserStatusUpdate,
+    AdminUserSummary,
     LoginRequest,
     ModerationDecisionRequest,
     ReportCreate,
@@ -21,7 +25,7 @@ from app.schemas import (
     VideoResponse,
 )
 from app.security import create_access_token, hash_password, verify_password
-from app.services import run_mock_analysis
+from app.services import run_mock_analysis, validate_mp4_content
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, version="0.1.0")
@@ -61,6 +65,81 @@ def profile(user: User = Depends(current_user)) -> User:
     return user
 
 
+@app.get("/api/v1/admin/users", response_model=list[AdminUserSummary])
+def admin_list_users(
+    search: str | None = None,
+    user: User = Depends(require_roles(UserRole.admin)),
+    db: Session = Depends(get_db),
+) -> list[User]:
+    query = select(User).order_by(User.created_at.desc())
+    if search:
+        pattern = f"%{search.strip()}%"
+        query = query.where(User.display_name.ilike(pattern) | User.email.ilike(pattern))
+    return list(db.scalars(query))
+
+
+@app.get("/api/v1/admin/users/{user_id}", response_model=AdminUserDetail)
+def admin_get_user(
+    user_id: UUID,
+    user: User = Depends(require_roles(UserRole.admin)),
+    db: Session = Depends(get_db),
+) -> User:
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+    return target
+
+
+@app.patch("/api/v1/admin/users/{user_id}/status", response_model=AdminUserDetail)
+def admin_update_user_status(
+    user_id: UUID,
+    payload: AdminUserStatusUpdate,
+    user: User = Depends(require_roles(UserRole.admin)),
+    db: Session = Depends(get_db),
+) -> User:
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+    if target.id == user.id and not payload.is_active:
+        raise HTTPException(status_code=400, detail="Không thể tự khóa tài khoản admin hiện tại")
+    target.is_active = payload.is_active
+    db.commit()
+    db.refresh(target)
+    return target
+
+
+@app.get("/api/v1/admin/moderators", response_model=list[AdminUserSummary])
+def admin_list_moderators(
+    user: User = Depends(require_roles(UserRole.admin)),
+    db: Session = Depends(get_db),
+) -> list[User]:
+    return list(
+        db.scalars(
+            select(User)
+            .where(User.role.in_((UserRole.moderator, UserRole.admin)))
+            .order_by(User.created_at.desc())
+        )
+    )
+
+
+@app.patch("/api/v1/admin/users/{user_id}/role", response_model=AdminUserDetail)
+def admin_update_user_role(
+    user_id: UUID,
+    payload: AdminRoleUpdate,
+    user: User = Depends(require_roles(UserRole.admin)),
+    db: Session = Depends(get_db),
+) -> User:
+    target = db.get(User, user_id)
+    if target is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy người dùng")
+    if target.id == user.id and payload.role != UserRole.admin:
+        raise HTTPException(status_code=400, detail="Không thể tự thu hồi quyền admin hiện tại")
+    target.role = payload.role
+    db.commit()
+    db.refresh(target)
+    return target
+
+
 @app.post("/api/v1/videos", response_model=VideoResponse, status_code=status.HTTP_201_CREATED)
 def upload_video(
     background_tasks: BackgroundTasks,
@@ -75,6 +154,10 @@ def upload_video(
     content = file.file.read(settings.max_upload_size_bytes + 1)
     if len(content) > settings.max_upload_size_bytes:
         raise HTTPException(status_code=413, detail="Video vượt quá dung lượng 50MB")
+    try:
+        validate_mp4_content(content)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     video = Video(
         owner_id=user.id,
         original_filename=Path(filename).name,

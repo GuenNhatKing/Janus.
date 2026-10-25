@@ -9,6 +9,24 @@ from app.config import get_settings
 from app.models import AIJob, JobStatus, Label, Video, VideoLabel, VideoStatus
 
 
+SUPPORTED_MP4_CODECS = (b"avc1", b"hvc1", b"hev1", b"av01", b"mp4v")
+
+
+def validate_mp4_content(content: bytes) -> str:
+    if len(content) < 16 or content[4:8] != b"ftyp":
+        raise ValueError("Tệp không có MP4 magic bytes hợp lệ")
+    box_size = int.from_bytes(content[0:4], "big")
+    if box_size < 16 or box_size > len(content):
+        raise ValueError("MP4 ftyp box không hợp lệ")
+    compatible_brands = content[8:box_size]
+    if not any(brand in compatible_brands for brand in (b"isom", b"iso2", b"mp41", b"mp42", b"avc1")):
+        raise ValueError("MP4 brand không được hỗ trợ")
+    codec = next((marker for marker in SUPPORTED_MP4_CODECS if marker in content), None)
+    if codec is None:
+        raise ValueError("Không tìm thấy codec video MP4 được hỗ trợ")
+    return codec.decode("ascii")
+
+
 def confidence_level(score: float) -> str:
     settings = get_settings()
     if score < settings.low_confidence_threshold:

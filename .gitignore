@@ -35,3 +35,7 @@ TestDataset.tar
 /local-tests/logs/
 /.postman/
 /postman/
+
+# Local requirements and internal project documents
+/SRS.docx
+/SRS_extracted.txt
