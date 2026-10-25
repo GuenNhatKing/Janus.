@@ -1,0 +1,16 @@
+.env
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+backend/.env
+backend/storage/
+backend/test_storage/
+*.mp4
+*.mov
+*.dump
+*.sql
+*.db
+*.sqlite
+*.sqlite3
