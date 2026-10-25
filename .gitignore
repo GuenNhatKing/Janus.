@@ -1,16 +1,37 @@
+# Local environment and secrets
 .env
+.env.*
+!.env.example
+backend/.env
+
+# Python environments, caches, and test reports
 .venv/
+venv/
+env/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .coverage
-backend/.env
+htmlcov/
+
+# Runtime data and generated database files
 backend/storage/
 backend/test_storage/
-*.mp4
-*.mov
 *.dump
 *.sql
 *.db
 *.sqlite
 *.sqlite3
+*.log
+
+# Local media and development datasets
+*.mp4
+*.mov
+/TestDataset/
+TestDataset.tar
+
+# Local Postman workspaces, collections, fixtures, and logs
+/local-tests/postman/
+/local-tests/logs/
+/.postman/
+/postman/
