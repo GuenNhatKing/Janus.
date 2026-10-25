@@ -1,231 +1,211 @@
-# PBL6 AI Short Video Moderation
+# PBL6 — AI Short Video Moderation Platform
 
-Backend MVP cho nền tảng video ngắn có AI gợi ý nhãn và quy trình kiểm duyệt.
+PBL6 is a FastAPI backend MVP for a short-video platform with JWT
+authentication, local video storage, mock AI analysis, user reports, and basic
+moderation workflows.
 
-## Phạm vi MVP
+The project is currently backend-only. A frontend application, production AI
+provider, cloud object storage, and production-grade moderation infrastructure
+are not included in the current repository.
 
-- FastAPI, PostgreSQL, SQLAlchemy 2.x và Alembic.
-- Đăng ký, đăng nhập JWT và phân quyền `User`, `Moderator`, `Admin`.
-- Upload video `.mp4` tối đa 50MB vào local storage.
-- Mock AI/STT chạy bằng FastAPI `BackgroundTasks`.
-- Nhãn đa trị, confidence level `LOW/MEDIUM/HIGH`.
-- Feed chỉ hiển thị video đã publish.
-- Report video, hàng đợi moderation cơ bản và soft delete.
+## Contents
 
-Appeal, email notification, dashboard analytics, Celery/Redis và AI/STT thật chưa nằm trong MVP.
+- [Overview](#overview)
+- [Current capabilities](#current-capabilities)
+- [Architecture](#architecture)
+- [Technology stack](#technology-stack)
+- [Repository structure](#repository-structure)
+- [Prerequisites](#prerequisites)
+- [Local setup](#local-setup)
+- [Running the backend](#running-the-backend)
+- [Database and migrations](#database-and-migrations)
+- [Testing](#testing)
+- [API documentation](#api-documentation)
+- [Project status and limitations](#project-status-and-limitations)
+- [Development workflow](#development-workflow)
+- [Security and data-safety notes](#security-and-data-safety-notes)
 
-### Kiểm thử upload bằng video thật (local only)
+## Overview
 
-Nếu workspace có thư mục `TestDataset`, pytest sẽ tự chọn file `.mp4` đầu tiên
-trong thư mục này. Backend kiểm tra MP4 magic bytes, brand và codec video được
-hỗ trợ trước khi lưu vào `UPLOAD_DIR` local. Hiện tại adapter AI chỉ là
-`run_mock_analysis`; không có Cloud Storage hoặc API AI bên ngoài.
+The system supports a moderation-oriented video workflow:
 
-Chạy kiểm thử:
+1. A user registers and signs in.
+2. The authenticated user uploads an MP4 video.
+3. The backend validates the file and stores it locally.
+4. A local mock analysis task creates a transcript and a `Safe` label.
+5. Published videos are available through the public feed.
+6. Users can report videos.
+7. Moderators and admins can review queues and make moderation decisions.
+8. Admins can manage user status and the roles supported by the current model.
+
+The implementation is intentionally local-only for development. The AI adapter
+is `run_mock_analysis`; no external AI API or Cloud Storage integration is
+present in the current backend.
+
+## Current capabilities
+
+### Implemented and tested
+
+- User registration and JWT login.
+- Authenticated profile retrieval.
+- Role model with `user`, `moderator`, and `admin`.
+- MP4 upload with:
+  - `.mp4` filename and `video/mp4` MIME validation.
+  - 50 MiB size limit.
+  - MP4 `ftyp`/brand/codec validation.
+  - Local filesystem storage.
+- Mock asynchronous AI result:
+  - Development transcript.
+  - `Safe` label.
+  - Confidence `0.95`, level `HIGH`.
+- User video listing, public feed, and owner-only soft delete.
+- Content reports with validation and duplicate-open-report protection.
+- Moderation queue, open-report list, and moderation decisions.
+- Admin MVP:
+  - User list and search.
+  - User detail.
+  - Activate/deactivate user.
+  - Moderator/admin list.
+  - Role changes for the enum values supported by the model.
+
+### Partially implemented
+
+- Moderation has no locking/claim workflow or complete audit history.
+- Admin management does not yet include Senior Moderator, notifications,
+  audit logs, session revocation, workload statistics, or locked-work
+  reassignment.
+- Video management has no pagination, search/filtering, or streaming endpoint.
+- Authentication has no refresh token, logout/revocation, or password recovery.
+
+### Not implemented in the current repository
+
+- Frontend application.
+- Real AI, speech-to-text, or external model-provider integration.
+- Cloud video storage.
+- Appeal workflow.
+- Full admin policy/label management.
+- Analytics dashboard and production job infrastructure.
+
+These status statements describe the current codebase, not a promise that the
+corresponding SRS use cases are complete.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    Client[Postman / API client] --> API[FastAPI application]
+    API --> Auth[JWT and RBAC]
+    API --> ORM[SQLAlchemy]
+    ORM --> DB[(PostgreSQL)]
+    API --> Storage[Local upload directory]
+    API --> Task[FastAPI BackgroundTasks]
+    Task --> MockAI[run_mock_analysis]
+    MockAI --> ORM
+```
+
+The automated test fixture uses a separate SQLite database and `test_storage`
+directory so the test suite does not require destructive operations against the
+development PostgreSQL database. The running backend uses the database URL
+configured in `.env`.
+
+## Technology stack
+
+| Area | Technology verified in the repository |
+|---|---|
+| Language/runtime | Python; the development environment used Python 3.12 |
+| API | FastAPI |
+| Server | Uvicorn |
+| Validation/settings | Pydantic and `pydantic-settings` |
+| ORM | SQLAlchemy 2.x |
+| Database | PostgreSQL with `psycopg[binary]` |
+| Migrations | Alembic |
+| Authentication | PyJWT and `hashlib.scrypt` password hashing |
+| Background processing | FastAPI `BackgroundTasks` |
+| Automated tests | Pytest and FastAPI TestClient |
+| API collections | Postman/Newman local collections |
+| Optional database runtime | Docker Compose PostgreSQL |
+
+Dependency ranges are maintained in
+[backend/requirements.txt](backend/requirements.txt).
+
+## Repository structure
+
+```text
+.
+├── backend/
+│   ├── app/
+│   │   ├── config.py          # Settings and environment loading
+│   │   ├── db.py              # SQLAlchemy engine/session setup
+│   │   ├── dependencies.py    # JWT authentication and RBAC dependencies
+│   │   ├── main.py            # FastAPI application and route handlers
+│   │   ├── models.py          # SQLAlchemy models and enums
+│   │   ├── schemas.py         # Pydantic request/response schemas
+│   │   ├── security.py        # Password hashing and JWT creation
+│   │   └── services.py        # MP4 validation and mock AI adapter
+│   ├── alembic/
+│   │   └── versions/          # Database migrations
+│   ├── scripts/
+│   │   └── check_db.py        # Non-destructive database connectivity check
+│   ├── tests/                 # Official Pytest suite
+│   ├── .env.example           # Safe configuration template
+│   ├── alembic.ini
+│   └── requirements.txt
+├── docker/
+│   └── postgres/              # PostgreSQL initialization script
+├── docker-compose.yml         # Optional local PostgreSQL service
+├── API_ENDPOINTS_GUIDE.md     # Detailed endpoint integration guide
+├── PBL6_Implementation_Report.md
+├── AGENTS.md                  # Project instructions for contributors/agents
+└── README.md
+```
+
+`SRS.docx`, `TestDataset/`, Postman collections, test logs, local workspaces,
+runtime data, and secrets are local development resources and are excluded
+from Git where appropriate.
+
+## Prerequisites
+
+Install or make available:
+
+- Python compatible with the dependency ranges; Python 3.12 is the verified
+  development runtime.
+- PostgreSQL 16 or a compatible PostgreSQL installation, or Docker Desktop for
+  the optional Compose setup.
+- Git.
+- Newman if API collection tests are required.
+
+PowerShell is used in the examples below. Do not use production credentials or
+production databases for local development or tests.
+
+## Local setup
+
+### 1. Clone and create a virtual environment
 
 ```powershell
-cd E:\PBL6\backend
-.\.venv\Scripts\python.exe -m pytest -q
-cd E:\PBL6
-newman run .\local-tests\postman\video-upload_v1.0.0.postman_collection.json `
-  --env-var "base_url=http://127.0.0.1:8000"
-```
+git clone https://github.com/Hrk9324/PBL6_AI_short_video_moderation.git
+Set-Location PBL6_AI_short_video_moderation
 
-Video trong `TestDataset` và các fixture/log Postman local không được commit.
-
-## Thiết lập PostgreSQL trên Windows 10/11
-
-Phần này mô tả quy trình từ máy chưa có PostgreSQL đến khi Backend truy vấn
-được database. Các lệnh dùng PowerShell và không yêu cầu gửi mật khẩu thật
-trong cuộc trò chuyện.
-
-### 1. Kiểm tra PostgreSQL
-
-Mở PowerShell mới và kiểm tra client, service, host và port:
-
-```powershell
-psql --version
-Get-Service -Name "postgresql*" -ErrorAction SilentlyContinue
-Test-NetConnection -ComputerName localhost -Port 5432
-```
-
-Nếu `psql` không được nhận diện, PostgreSQL chưa có trong `PATH`. Có thể gọi
-trực tiếp bằng đường dẫn mặc định (điều chỉnh version nếu cần):
-
-```powershell
-& "C:\Program Files\PostgreSQL\16\bin\psql.exe" --version
-```
-
-Nếu chưa cài, tải PostgreSQL từ trang chính thức:
-<https://www.postgresql.org/download/windows/>. Trong trình cài đặt:
-
-1. Giữ port mặc định `5432` nếu port này chưa bị sử dụng.
-2. Đặt mật khẩu riêng cho role quản trị `postgres`; không dùng mật khẩu đó
-   trong source code hoặc tài khoản ứng dụng.
-3. Có thể cài pgAdmin và Command Line Tools.
-
-Sau khi cài, kiểm tra service:
-
-```powershell
-Get-Service -Name "postgresql*" | Format-Table Name,Status,StartType
-Start-Service -Name "postgresql-x64-16" # thay tên bằng kết quả thực tế
-```
-
-Nếu service đã chạy, không cần gọi `Start-Service`. Host mặc định là
-`localhost`, port là `5432`, còn database/role sẽ được tạo ở bước tiếp theo.
-Có thể dùng `psql` hoặc pgAdmin để thực hiện các câu lệnh SQL.
-
-### 2. Tạo database và role ứng dụng
-
-Đăng nhập bằng role quản trị cục bộ. Thay `postgres` bằng role quản trị của
-bạn nếu đã chọn tên khác:
-
-```powershell
-psql -h localhost -p 5432 -U postgres -d postgres
-```
-
-Trong cửa sổ `psql`, thay các giá trị mẫu bằng mật khẩu riêng của bạn. Không
-đưa mật khẩu thật vào README, script hoặc Git:
-
-```sql
-CREATE ROLE pbl6_app WITH LOGIN PASSWORD 'CHANGE_ME_TO_A_PRIVATE_PASSWORD';
-CREATE DATABASE pbl6 OWNER pbl6_app;
-\c pbl6
-GRANT CONNECT ON DATABASE pbl6 TO pbl6_app;
-GRANT USAGE, CREATE ON SCHEMA public TO pbl6_app;
-\du pbl6_app
-\l pbl6
-\q
-```
-
-Role `pbl6_app` chỉ phục vụ Backend; không dùng role superuser `postgres` cho
-ứng dụng trong môi trường thông thường. Nếu database hoặc role đã tồn tại,
-không chạy lại lệnh tạo một cách mù quáng; kiểm tra trước:
-
-```powershell
-psql -h localhost -p 5432 -U postgres -d postgres -c "\du"
-psql -h localhost -p 5432 -U postgres -d postgres -c "\l"
-```
-
-Kiểm tra quyền bằng tài khoản ứng dụng:
-
-```powershell
-psql -h localhost -p 5432 -U pbl6_app -d pbl6 -c "SELECT current_user, current_database(), version();"
-```
-
-Backend cũng có thể kiểm tra kết nối mà không in mật khẩu:
-
-```powershell
-cd E:\PBL6\backend
-.\.venv\Scripts\Activate.ps1
-python -m scripts.check_db
-```
-
-### 3. Cấu hình `.env`
-
-Từ thư mục `E:\PBL6\backend`:
-
-```powershell
-Copy-Item .env.example .env
-notepad .env
-```
-
-Sửa `DATABASE_URL` thành:
-
-```dotenv
-DATABASE_URL=postgresql+psycopg://pbl6_app:YOUR_PASSWORD@localhost:5432/pbl6
-```
-
-Ý nghĩa các thành phần:
-
-- `postgresql+psycopg`: SQLAlchemy dùng dialect PostgreSQL và driver `psycopg`.
-- `pbl6_app`: role ứng dụng.
-- `YOUR_PASSWORD`: mật khẩu role ứng dụng.
-- `localhost:5432`: host và port PostgreSQL.
-- `pbl6`: tên database.
-
-Nếu mật khẩu có ký tự đặc biệt như `@`, `:`, `/`, `#` hoặc khoảng trắng,
-hãy URL-encode phần mật khẩu trước khi đặt vào URL. Ví dụ, `pa@ss#word`
-thành `pa%40ss%23word`. Không ghi mật khẩu thật vào commit hoặc gửi qua chat.
-
-`SECRET_KEY` trong `.env` cũng phải được thay bằng giá trị dài, ngẫu nhiên ở
-môi trường thực tế. File `.env` đã được bỏ qua bởi `.gitignore`.
-
-### 4. Cài dependency PostgreSQL
-
-Dự án dùng duy nhất driver `psycopg` (không dùng `psycopg2`). Từ thư mục
-Backend:
-
-```powershell
-cd E:\PBL6\backend
+Set-Location backend
 py -3.12 -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
-python -c "import psycopg; print(psycopg.__version__)"
 ```
 
-Dependency tương ứng là `psycopg[binary]` trong
-[requirements.txt](backend/requirements.txt). Không cần cài thêm driver
-PostgreSQL khác.
+If `py -3.12` is not available, use an installed Python version compatible
+with the dependency ranges and keep the selected interpreter consistent for
+installation, migrations, and tests.
 
-### 5. Chạy và kiểm tra Alembic migration
+### 2. Prepare PostgreSQL
 
-Đảm bảo đang ở `E:\PBL6\backend`, virtual environment đã kích hoạt và `.env`
-đang trỏ tới đúng database:
+Use an existing local PostgreSQL installation or the optional Docker Compose
+service. For native PostgreSQL, create a development database and a dedicated
+application role; do not use the PostgreSQL superuser as the application
+runtime identity in normal environments.
 
-```powershell
-alembic current
-alembic upgrade head
-alembic current
-psql -h localhost -p 5432 -U pbl6_app -d pbl6 -c "\dt"
-alembic history
-```
-
-Migration đầu tiên tạo các bảng `users`, `videos`, `labels`, `video_labels`,
-`ai_jobs`, `moderation_reviews` và `reports`. `alembic current` sau khi nâng
-cấp phải hiển thị revision `0001_initial`.
-
-Không `DROP DATABASE`, xóa volume hoặc reset dữ liệu để sửa lỗi migration.
-Nếu database có dữ liệu, hãy kiểm tra trạng thái và tạo migration mới:
+For Docker Compose, set private PowerShell variables and start PostgreSQL:
 
 ```powershell
-alembic revision --autogenerate -m "describe schema change"
-alembic upgrade head
-```
-
-### 6. Kiểm tra end-to-end và chạy Backend
-
-Thực hiện theo thứ tự:
-
-```powershell
-Get-Service -Name "postgresql*" | Where-Object Status -eq "Running"
-Test-NetConnection localhost -Port 5432
-psql -h localhost -p 5432 -U pbl6_app -d pbl6 -c "SELECT 1;"
-alembic current
-uvicorn app.main:app --reload
-```
-
-Trong PowerShell khác:
-
-```powershell
-Invoke-RestMethod http://127.0.0.1:8000/health
-```
-
-Kết quả mong đợi của health endpoint là `status: ok`. Sau đó mở Swagger tại
-`http://127.0.0.1:8000/docs` và thử đăng ký tài khoản. API này sẽ truy vấn
-PostgreSQL qua `DATABASE_URL`.
-
-Nếu local đang dùng role `postgres` để khởi động MVP, hãy chuyển sang role
-`pbl6_app` trước khi triển khai hoặc chia sẻ môi trường. Role `postgres` là
-superuser và chỉ nên được dùng tạm thời cho local bootstrap.
-
-### 7. PostgreSQL bằng Docker Compose (tùy chọn)
-
-Nếu không muốn cài PostgreSQL native, repository có
-[docker-compose.yml](docker-compose.yml):
-
-```powershell
-cd E:\PBL6
+Set-Location ..
 $env:POSTGRES_ADMIN_PASSWORD = "CHANGE_ME_ADMIN_PASSWORD"
 $env:POSTGRES_APP_PASSWORD = "CHANGE_ME_APP_PASSWORD"
 docker compose up -d postgres
@@ -233,88 +213,196 @@ docker compose ps
 docker compose logs postgres
 ```
 
-Compose MVP tạo database `pbl6`, role quản trị bootstrap `postgres`, role ứng
-dụng `pbl6_app` và port `5432`. Hai mật khẩu chỉ được truyền qua biến môi
-trường PowerShell; không đặt chúng trong source code. Script khởi tạo
-[01-create-app-role.sh](docker/postgres/01-create-app-role.sh) tạo role ứng
-dụng và chuyển owner database sang role này. Đây chỉ là cấu hình local tiện
-dụng; không dùng các mật khẩu local ở production.
-
-Các script trong `/docker-entrypoint-initdb.d` chỉ chạy khi PostgreSQL volume
-được khởi tạo lần đầu. Nếu container đã có volume, role/database hiện tại
-không bị ghi đè; hãy kiểm tra bằng `psql` và tạo role thủ công theo bước 2
-nếu cần. Không xóa volume để ép chạy lại script.
-
-Dừng container nhưng giữ dữ liệu:
+The Compose initialization script runs only when the PostgreSQL volume is
+created for the first time. Stop and start the service without deleting data:
 
 ```powershell
 docker compose stop postgres
 docker compose start postgres
 ```
 
-Không chạy `docker compose down -v`: tùy chọn `-v` xóa volume và dữ liệu
-PostgreSQL. `docker compose down` không có `-v` chỉ dừng/xóa container và
-giữ volume.
+Do not use `docker compose down -v` unless intentionally removing the database
+volume and its data.
 
-### 8. Xử lý lỗi thường gặp
+### 3. Configure environment variables
 
-| Lỗi | Kiểm tra | Nguyên nhân/cách xử lý an toàn |
-|---|---|---|
-| `connection refused` | `Test-NetConnection localhost -Port 5432` | Service/container chưa chạy, port sai hoặc PostgreSQL không lắng nghe trên port đó. Khởi động service/container và kiểm tra log. |
-| Sai host/port | `psql -h localhost -p 5432 ...` | Đối chiếu host/port với `DATABASE_URL`; không đổi database hoặc xóa volume để sửa lỗi này. |
-| `password authentication failed` | Thử `psql` bằng đúng role | Kiểm tra username, mật khẩu và URL-encoding ký tự đặc biệt. Đặt lại mật khẩu bằng tài khoản quản trị chỉ khi cần. |
-| `database does not exist` | `psql ... -d postgres -c "\l"` | Tạo `pbl6` theo bước 2 hoặc sửa đúng tên database trong `.env`. |
-| `permission denied` | `\du`, `\dn+ public` bằng admin | Cấp `CONNECT`, `USAGE`, `CREATE` cho `pbl6_app`; không cấp superuser chỉ để né lỗi. |
-| Thiếu driver PostgreSQL | `python -c "import psycopg"` | Kích hoạt đúng `.venv`, rồi chạy `python -m pip install -r requirements.txt`. |
-| Sai `DATABASE_URL` | Kiểm tra `.env` và chạy `python -c "from app.config import get_settings; from sqlalchemy.engine import make_url; u=make_url(get_settings().database_url); print(u.drivername, u.host, u.port, u.database, u.username)"` | Sửa scheme `postgresql+psycopg`, role, mật khẩu đã encode, host, port và database. Không in URL có mật khẩu trong log chia sẻ. |
-| Migration lỗi | `alembic current`, xem lỗi cụ thể | Xác minh quyền/schema và URL trước; không drop database. Sửa migration chưa áp dụng hoặc tạo migration mới. |
-| Service chưa khởi động | `Get-Service -Name "postgresql*"` | Dùng đúng tên service thực tế từ kết quả, hoặc xem log Docker bằng `docker compose logs postgres`. |
-
-### 9. Development và production
-
-- Không dùng credentials production trên máy phát triển.
-- Không commit `.env`, secret, video upload hoặc database dump.
-- Không dùng `postgres` superuser làm tài khoản ứng dụng thông thường.
-- Không xóa volume/database khi chỉ gặp lỗi kết nối.
-- Native PostgreSQL và Docker Compose là hai lựa chọn thay thế; chỉ cần dùng
-  một lựa chọn tại một thời điểm để tránh tranh chấp port `5432`.
-- Môi trường production cần secret manager, TLS, backup/restore đã kiểm thử,
-  giới hạn network và role database tối thiểu.
-
-## Test
+From the `backend` directory:
 
 ```powershell
-cd E:\PBL6\backend
-pytest -q
+Copy-Item .env.example .env
 ```
 
-Test API dùng SQLite tạm thời để không yêu cầu PostgreSQL đang chạy; môi trường chạy thật dùng PostgreSQL qua `DATABASE_URL`.
+Edit `.env` with local values. The safe template contains:
 
-## Migration
+```dotenv
+DATABASE_URL=postgresql+psycopg://pbl6_app:YOUR_PASSWORD@localhost:5432/pbl6
+SECRET_KEY=replace-with-a-long-random-development-secret-key
+UPLOAD_DIR=storage/uploads
+MAX_UPLOAD_SIZE_BYTES=52428800
+```
+
+Use URL encoding for reserved characters in a connection URL password. Never
+commit `.env` or share real credentials. The application reads settings from
+the backend working directory.
+
+### 4. Apply migrations
 
 ```powershell
+Set-Location backend
+.\.venv\Scripts\Activate.ps1
+alembic current
 alembic upgrade head
-alembic revision --autogenerate -m "describe change"
+alembic current
 ```
 
-Không reset hoặc drop database để áp dụng migration.
+The current migration is `0001_initial`. It creates the users, videos, labels,
+video labels, AI jobs, moderation reviews, and reports tables.
 
-## API MVP
+Do not drop or reset a database to resolve a migration problem. Check the
+database URL, role permissions, schema, and current Alembic revision first.
 
-- `POST /api/v1/auth/register`
-- `POST /api/v1/auth/login`
-- `GET /api/v1/profile`
-- `POST /api/v1/videos`
-- `GET /api/v1/videos`
-- `GET /api/v1/feed`
-- `GET /api/v1/videos/{video_id}/ai`
-- `DELETE /api/v1/videos/{video_id}`
-- `POST /api/v1/videos/{video_id}/reports`
-- `GET /api/v1/moderation/queue`
-- `POST /api/v1/moderation/videos/{video_id}/decision`
-- `GET /api/v1/moderation/reports`
-- `POST /api/v1/moderation/reports/{report_id}/decision`
+## Running the backend
 
-## Biến môi trường
+From `backend` with the virtual environment active:
 
-Xem `backend/.env.example`. Không commit `.env`, secret thật, video upload hoặc database dump.
+```powershell
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Verify readiness from another terminal:
+
+```powershell
+Invoke-RestMethod http://127.0.0.1:8000/health
+```
+
+Expected response:
+
+```json
+{"status": "ok"}
+```
+
+FastAPI's generated documentation is available at
+<http://127.0.0.1:8000/docs> while the server is running. The OpenAPI JSON is
+available at <http://127.0.0.1:8000/openapi.json>.
+
+## Testing
+
+### Pytest
+
+Run the official backend test suite:
+
+```powershell
+Set-Location backend
+.\.venv\Scripts\python.exe -m pytest -q
+```
+
+The current test fixture uses SQLite and local `test_storage`; it resets only
+that test database through the fixture. It does not reset the development
+PostgreSQL database.
+
+The latest verified development run before this README rewrite was:
+
+- `14 passed, 3 warnings`
+- Warnings are deprecations from FastAPI/Starlette/httpx and did not fail tests.
+
+### Newman
+
+Newman collections are local-only and ignored by Git. With the backend running
+on a local port, run a collection such as:
+
+```powershell
+Set-Location ..
+newman run .\local-tests\postman\auth-jwt_v1.0.0.postman_collection.json `
+  --env-var "base_url=http://127.0.0.1:8000"
+```
+
+Collections exist for Auth/JWT, User Profile, Video Upload, Video Management,
+AI Analysis, Content Report, Moderation, and Admin Management. Their detailed
+logs remain under `local-tests/logs/` and must not be committed.
+
+Verified local Newman results recorded in the module logs include:
+
+| Collection | Result |
+|---|---|
+| Auth/JWT | 7 requests, 10 assertions, 0 failed |
+| User Profile | 5 requests, 5 assertions, 0 failed |
+| Video Upload | 6 requests, 6 assertions, 0 failed |
+| Video Management | 10 requests, 10 assertions, 0 failed |
+| AI Analysis | 9 requests, 9 assertions, 0 failed |
+| Content Report | 8 requests, 8 assertions, 0 failed |
+| Moderation | 11 requests, 11 assertions, 0 failed |
+| Admin Management | 11 requests, 11 assertions, 0 failed |
+
+These results are historical local evidence recorded in module logs, not a CI
+badge or a guarantee for every future environment.
+
+## API documentation
+
+See [API_ENDPOINTS_GUIDE.md](API_ENDPOINTS_GUIDE.md) for the complete,
+source-verified request guide. It includes:
+
+- All registered endpoints and operation IDs.
+- Authentication and role requirements.
+- JSON, query, path, and multipart request formats.
+- Upload rules and local storage behavior.
+- Response examples and implementation-backed errors.
+- Postman/cURL examples and workflow sequences.
+- A distinction between runtime-tested and source/OpenAPI-only behavior.
+
+## Project status and limitations
+
+The repository is a working backend MVP, not a complete production platform.
+The main known limitations are:
+
+- No frontend application is present.
+- AI and speech-to-text are mock-only.
+- Uploads are local filesystem files; there is no cloud storage adapter.
+- No video streaming/playback endpoint is implemented.
+- No pagination, search, or label filtering for the public/user video lists.
+- No refresh/revocation/logout/password-recovery workflow.
+- Moderation lacks robust locking, concurrency handling, evidence management,
+  and a complete audit log.
+- Appeal, notifications, analytics, and production job queues are absent.
+- Admin management is an MVP and lacks Senior Moderator, audit, notification,
+  session-revocation, workload-statistics, and locked-work reassignment
+  behavior.
+- The current database migration is an initial schema migration; future
+  schema changes require reviewed Alembic migrations.
+
+The authoritative requirement document is the local `SRS.docx`. It is not
+tracked in Git. The implementation report and API guide describe the current
+gap between that SRS and the implemented MVP.
+
+## Development workflow
+
+Before changing behavior:
+
+1. Read [AGENTS.md](AGENTS.md), the relevant SRS section, and
+   [API_ENDPOINTS_GUIDE.md](API_ENDPOINTS_GUIDE.md).
+2. Inspect the existing route, schema, model, dependency, migration, and test.
+3. Make a focused change without overwriting unrelated working-tree changes.
+4. Add or update official Pytest coverage.
+5. Run Pytest and, for API modules, the corresponding local Newman collection.
+6. Record module test history under the ignored local log directory.
+7. Update the API guide when the public contract changes.
+8. Review `git diff`, `git diff --check`, and staged file names before any
+   explicitly authorized commit.
+
+Every new module requires explicit user approval before implementation. Do not
+automatically select or start the next module after completing one.
+
+## Security and data-safety notes
+
+- Never commit `.env`, passwords, JWTs, API keys, database dumps, local media,
+  Postman environments, or runtime logs.
+- Use a least-privilege PostgreSQL application role.
+- Do not use production credentials or a production database for local tests.
+- Do not reset, drop, truncate, or delete a database to fix a connection or
+  migration issue.
+- Keep the SRS and internal development artifacts local.
+- Review `.gitignore` and `git status --short` before committing.
+
+## License and team
+
+No license or team metadata has been confirmed in the repository. No license
+statement is made here.
