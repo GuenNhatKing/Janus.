@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from enum import Enum
 from uuid import UUID, uuid4
 
-from sqlalchemy import Boolean, DateTime, Enum as SqlEnum, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Enum as SqlEnum, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base
@@ -37,6 +37,12 @@ class JobStatus(str, Enum):
 class ReportStatus(str, Enum):
     open = "open"
     resolved = "resolved"
+    rejected = "rejected"
+
+
+class AppealStatus(str, Enum):
+    open = "open"
+    approved = "approved"
     rejected = "rejected"
 
 
@@ -116,6 +122,70 @@ class AIJob(Base):
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     video: Mapped[Video] = relationship(back_populates="ai_jobs")
+
+
+class RefreshToken(Base):
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+    user: Mapped["User"] = relationship()
+
+
+class RevokedToken(Base):
+    """Danh sách access token (jti) đã bị đăng xuất trước khi hết hạn."""
+
+    __tablename__ = "revoked_tokens"
+
+    jti: Mapped[str] = mapped_column(String(36), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+
+
+class PasswordResetToken(Base):
+    __tablename__ = "password_reset_tokens"
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    token_hash: Mapped[str] = mapped_column(String(64), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class Appeal(Base):
+    __tablename__ = "appeals"
+    # Chỉ cho phép một appeal đang mở cho mỗi (video, user); các appeal cũ đã
+    # quyết định vẫn giữ lại làm lịch sử.
+    __table_args__ = (
+        Index(
+            "uq_appeal_open",
+            "video_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("status = 'open'"),
+            sqlite_where=text("status = 'open'"),
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
+    video_id: Mapped[UUID] = mapped_column(ForeignKey("videos.id"), index=True)
+    user_id: Mapped[UUID] = mapped_column(ForeignKey("users.id"), index=True)
+    reason: Mapped[str] = mapped_column(Text, nullable=False)
+    status: Mapped[AppealStatus] = mapped_column(SqlEnum(AppealStatus), default=AppealStatus.open, nullable=False, index=True)
+    moderator_id: Mapped[UUID | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    decision_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    video: Mapped["Video"] = relationship()
+    user: Mapped["User"] = relationship(foreign_keys=[user_id])
+    moderator: Mapped["User"] = relationship(foreign_keys=[moderator_id])
 
 
 class ModerationReview(Base):

@@ -39,3 +39,7 @@ TestDataset.tar
 # Local requirements and internal project documents
 /SRS.docx
 /SRS_extracted.txt
+
+*.pth
+*.keras
+backend/NSFW-Detection/src/models/

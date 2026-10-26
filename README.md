@@ -1,12 +1,18 @@
 # PBL6 — AI Short Video Moderation Platform
 
-PBL6 is a FastAPI backend MVP for a short-video platform with JWT
-authentication, local video storage, mock AI analysis, user reports, and basic
-moderation workflows.
+PBL6 is a FastAPI backend for a short-video platform with JWT authentication,
+local video storage, AI content analysis, user reports, and moderation
+workflows.
 
-The project is currently backend-only. A frontend application, production AI
-provider, cloud object storage, and production-grade moderation infrastructure
-are not included in the current repository.
+AI analysis is integrated with the local `NSFW-Detection` pipeline (Adult
+detection, TensorFlow + PyTorch) through a subprocess adapter. While the AI
+environment is not installed, the job records why and falls back to the mock
+result instead of failing. Violence, sound and text/STT detection are still
+detector placeholders, so the code never pretends to be complete.
+
+The project is currently backend-only. A frontend application, cloud object
+storage, and production-grade moderation infrastructure are not included in
+the current repository.
 
 ## Contents
 
@@ -32,15 +38,19 @@ The system supports a moderation-oriented video workflow:
 1. A user registers and signs in.
 2. The authenticated user uploads an MP4 video.
 3. The backend validates the file and stores it locally.
-4. A local mock analysis task creates a transcript and a `Safe` label.
+4. A background analysis task runs the NSFW-Detection pipeline and stores the
+   resulting label and confidence. Videos with a risk label enter the
+   moderation queue.
 5. Published videos are available through the public feed.
 6. Users can report videos.
 7. Moderators and admins can review queues and make moderation decisions.
 8. Admins can manage user status and the roles supported by the current model.
 
-The implementation is intentionally local-only for development. The AI adapter
-is `run_mock_analysis`; no external AI API or Cloud Storage integration is
-present in the current backend.
+The AI entry point is `run_video_analysis` in
+[backend/app/services.py](backend/app/services.py), which calls
+`app.ai.pipeline.analyse_video`. The Adult detector shells out to
+`backend/NSFW-Detection/src/proposed/proposed_adult_video_detect.py` and reads its
+`08_final_decision.json` output; no external AI API or Cloud Storage is used.
 
 ## Current capabilities
 
@@ -54,10 +64,17 @@ present in the current backend.
   - 50 MiB size limit.
   - MP4 `ftyp`/brand/codec validation.
   - Local filesystem storage.
-- Mock asynchronous AI result:
-  - Development transcript.
-  - `Safe` label.
-  - Confidence `0.95`, level `HIGH`.
+- AI content analysis (`run_video_analysis` → `app.ai.pipeline`):
+  - Adult detection runs the NSFW-Detection pipeline in a subprocess and reads
+    its `08_final_decision.json` result.
+  - `AI_ANALYSIS_MODE=auto` (default): if the AI environment is unavailable the
+    job records the reason in the transcript and falls back to the mock result.
+  - `AI_ANALYSIS_MODE=required`: the job is marked `failed` when the AI
+    environment is unavailable; `off` keeps the old mock-only behaviour.
+  - A detected risk label (`Adult`) moves the video to `pending_review`; a
+    normal result publishes it with a `Safe` label and its confidence.
+  - Mock fallback result: development transcript, `Safe` label, confidence
+    `0.95`, level `HIGH`.
 - User video listing, public feed, and owner-only soft delete.
 - Content reports with validation and duplicate-open-report protection.
 - Moderation queue, open-report list, and moderation decisions.
@@ -67,24 +84,54 @@ present in the current backend.
   - Activate/deactivate user.
   - Moderator/admin list.
   - Role changes for the enum values supported by the model.
+- Session management (UC001–UC002):
+  - Refresh tokens with rotation (`POST /api/v1/auth/refresh`).
+  - Logout revoking the current access token (`jti`) and, when supplied, the
+    paired refresh token (`POST /api/v1/auth/logout`).
+  - Password reset tokens (`forgot`/`reset`, 30 minutes, single use). Because
+    no mail provider is integrated, `reset_token` is only echoed in the
+    response when `environment` is not `production`.
+- Profile update (`PATCH /api/v1/profile`): display name and password change;
+  a password change revokes every refresh token.
+- Video playback `GET /api/v1/videos/{id}/stream` with HTTP Range support.
+- Label search `GET /api/v1/videos/search` (`label`, `exclude_label`, `q`,
+  `limit`) returning each video's labels and owner.
+- Label confirmation/editing: owner `POST /videos/{id}/labels/confirm`,
+  moderator/admin `PATCH /videos/{id}/labels` (multi-label replace).
+- Appeals (UC011/UC017): create, moderated list, approve/reject decision; an
+  approved appeal publishes the video again. One open appeal per
+  (video, user) is enforced by a partial unique index.
+- Admin label management (2.2.13): list, create, rename, activate/deactivate,
+  with video counts.
+- Admin video status (2.2.12): publish, re-review, reject or soft-delete.
+- Statistics (UC019/UC020): per-moderator counters and a `days`-window
+  dashboard (videos by status, label distribution, reports/appeals/jobs,
+  moderator workload).
 
 ### Partially implemented
 
 - Moderation has no locking/claim workflow or complete audit history.
 - Admin management does not yet include Senior Moderator, notifications,
-  audit logs, session revocation, workload statistics, or locked-work
-  reassignment.
-- Video management has no pagination, search/filtering, or streaming endpoint.
-- Authentication has no refresh token, logout/revocation, or password recovery.
+  audit logs, workload statistics, or locked-work reassignment.
+- Password reset has no mail delivery: outside `production` the reset token is
+  returned in the response so the flow can be exercised locally.
+- List endpoints have no pagination; only `/videos/search` caps results with
+  `limit`.
+
+### Detector placeholders
+
+Detector placeholders (they raise `DetectorNotImplementedError` when called and
+are recorded in the job transcript as skipped) live in
+[backend/app/ai/placeholders.py](backend/app/ai/placeholders.py), with empty
+model directories under `backend/NSFW-Detection/src/models/{violence,sound,text}/`.
 
 ### Not implemented in the current repository
 
 - Frontend application.
-- Real AI, speech-to-text, or external model-provider integration.
-- Cloud video storage.
-- Appeal workflow.
-- Full admin policy/label management.
-- Analytics dashboard and production job infrastructure.
+- Speech-to-Text and the violence, sound and text detectors (placeholders only).
+- Cloud video storage and email delivery for password reset.
+- Pagination/filtering for the feed, video, report and moderation-queue lists.
+- Moderation claim/locking, a full audit log, notifications and a job queue.
 
 These status statements describe the current codebase, not a promise that the
 corresponding SRS use cases are complete.
@@ -96,17 +143,21 @@ flowchart LR
     Client[Postman / API client] --> API[FastAPI application]
     API --> Auth[JWT and RBAC]
     API --> ORM[SQLAlchemy]
-    ORM --> DB[(PostgreSQL)]
+    ORM --> DB[(Neon PostgreSQL)]
     API --> Storage[Local upload directory]
     API --> Task[FastAPI BackgroundTasks]
-    Task --> MockAI[run_mock_analysis]
-    MockAI --> ORM
+    Task --> AI[run_video_analysis]
+    AI --> Pipeline[app.ai.pipeline]
+    Pipeline --> NSFW[NSFW-Detection subprocess]
+    Pipeline --> Fallback[Mock fallback]
+    NSFW --> ORM
+    Fallback --> ORM
 ```
 
-The automated test fixture uses a separate SQLite database and `test_storage`
+The test fixture uses a separate SQLite database and `test_storage`
 directory so the test suite does not require destructive operations against the
-development PostgreSQL database. The running backend uses the database URL
-configured in `.env`.
+online Neon database. The running backend reads `DATABASE_URL` from
+`backend/.env`, which is filled in from `local/neondb.txt`.
 
 ## Technology stack
 
@@ -117,22 +168,24 @@ configured in `.env`.
 | Server | Uvicorn |
 | Validation/settings | Pydantic and `pydantic-settings` |
 | ORM | SQLAlchemy 2.x |
-| Database | PostgreSQL with `psycopg[binary]` |
+| Database | Neon PostgreSQL (online) with `psycopg[binary]`; URL from `local/neondb.txt` |
 | Migrations | Alembic |
 | Authentication | PyJWT and `hashlib.scrypt` password hashing |
 | Background processing | FastAPI `BackgroundTasks` |
+| AI content analysis | NSFW-Detection pipeline (TensorFlow 2.20 + PyTorch 2.6) run as a subprocess |
 | Automated tests | Pytest and FastAPI TestClient |
 | API collections | Postman/Newman local collections |
-| Optional database runtime | Docker Compose PostgreSQL |
 
 Dependency ranges are maintained in
-[backend/requirements.txt](backend/requirements.txt).
+[backend/requirements.txt](backend/requirements.txt). AI dependencies live in
+[backend/NSFW-Detection/src/requirements.txt](backend/NSFW-Detection/src/requirements.txt) and
+are installed separately so the API environment stays small.
 
 ## Repository structure
 
 ```text
 .
-├── backend/
+├── backend/                      # Backend (FastAPI)
 │   ├── app/
 │   │   ├── config.py          # Settings and environment loading
 │   │   ├── db.py              # SQLAlchemy engine/session setup
@@ -141,36 +194,54 @@ Dependency ranges are maintained in
 │   │   ├── models.py          # SQLAlchemy models and enums
 │   │   ├── schemas.py         # Pydantic request/response schemas
 │   │   ├── security.py        # Password hashing and JWT creation
-│   │   └── services.py        # MP4 validation and mock AI adapter
-│   ├── alembic/
-│   │   └── versions/          # Database migrations
-│   ├── scripts/
-│   │   └── check_db.py        # Non-destructive database connectivity check
+│   │   ├── services.py        # Job lifecycle: NSFW pipeline + mock fallback
+│   │   └── ai/
+│   │       ├── base.py        # Detection/AnalysisReport contract
+│   │       ├── nsfw.py        # NSFW-Detection subprocess adapter
+│   │       ├── placeholders.py# Violence/sound/text detectors (not implemented)
+│   │       └── pipeline.py    # Runs every detector, records skipped ones
+│   ├── NSFW-Detection/
+│   │   └── src/
+│   │       ├── proposed/      # Adult detection pipeline (4 stages)
+│   │       ├── models/        # Adult models + {violence,sound,text}/ placeholders
+│   │       ├── requirements.txt  # CPU dependencies (pruned to what src/ imports)
+│   │       └── README.md      # Pipeline usage, configuration, benchmarks
+│   ├── alembic/versions/      # Database migrations
+│   ├── scripts/check_db.py    # Non-destructive database connectivity check
 │   ├── tests/                 # Official Pytest suite
-│   ├── .env.example           # Safe configuration template
+│   ├── .env.example           # Safe configuration template (.env is ignored)
 │   ├── alembic.ini
 │   └── requirements.txt
-├── docker/
-│   └── postgres/              # PostgreSQL initialization script
-├── docker-compose.yml         # Optional local PostgreSQL service
+├── frontend/                  # Frontend (chưa có mã nguồn; SRS dùng ReactJS)
+├── local/                     # Toàn bộ bị Git bỏ qua
+│   ├── SRS.docx               # Tài liệu yêu cầu chính thức
+│   ├── neondb.txt             # Chuỗi kết nối Neon PostgreSQL
+│   └── TestDataset-v2/        # Bộ video test (Adult/, Normal/)
+├── local-tests/               # Postman collections và module log (bị Git bỏ qua)
 ├── API_ENDPOINTS_GUIDE.md     # Detailed endpoint integration guide
 ├── PBL6_Implementation_Report.md
 ├── AGENTS.md                  # Project instructions for contributors/agents
-└── README.md
+├── README.md
+├── pyproject.toml             # Python 3.14 project metadata (uv)
+└── .python-version
 ```
 
-`SRS.docx`, `TestDataset/`, Postman collections, test logs, local workspaces,
-runtime data, and secrets are local development resources and are excluded
-from Git where appropriate.
+`local/` is ignored as a whole, so `SRS.docx`, `neondb.txt` and
+`TestDataset-v2/` can never be committed by accident. Postman collections,
+module logs under `local-tests/`, runtime data and secrets are excluded from
+Git as well.
 
 ## Prerequisites
 
 Install or make available:
 
-- Python compatible with the dependency ranges; Python 3.12 is the verified
-  development runtime.
-- PostgreSQL 16 or a compatible PostgreSQL installation, or Docker Desktop for
-  the optional Compose setup.
+- Python 3.14 for the backend (`.python-version` and `requires-python >= 3.14`);
+  Python 3.14.8 is the verified interpreter in this workspace.
+- Access to the Neon PostgreSQL connection string stored in `local/neondb.txt`.
+- Optional — only to run the real Adult pipeline: a second interpreter (Python
+  3.11 recommended) with the NSFW-Detection dependencies installed, selected via
+  `NSFW_PYTHON`. TensorFlow 2.20 does not support Python 3.14, so the AI
+  environment is intentionally kept separate from the API environment.
 - Git.
 - Newman if API collection tests are required.
 
@@ -185,44 +256,31 @@ production databases for local development or tests.
 git clone https://github.com/Hrk9324/PBL6_AI_short_video_moderation.git
 Set-Location PBL6_AI_short_video_moderation
 
-Set-Location backend
-py -3.12 -m venv .venv
+py -3.14 -m venv .venv
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt
+python -m pip install -r backend\requirements.txt
 ```
 
-If `py -3.12` is not available, use an installed Python version compatible
+If `py -3.14` is not available, use an installed Python version compatible
 with the dependency ranges and keep the selected interpreter consistent for
 installation, migrations, and tests.
 
-### 2. Prepare PostgreSQL
+### 2. Database: online Neon PostgreSQL
 
-Use an existing local PostgreSQL installation or the optional Docker Compose
-service. For native PostgreSQL, create a development database and a dedicated
-application role; do not use the PostgreSQL superuser as the application
-runtime identity in normal environments.
+The Docker Compose PostgreSQL service has been removed from this repository.
+The backend connects to the online Neon database described by
+`local/neondb.txt`; the whole `local/` directory is ignored by Git.
 
-For Docker Compose, set private PowerShell variables and start PostgreSQL:
-
-```powershell
-Set-Location ..
-$env:POSTGRES_ADMIN_PASSWORD = "CHANGE_ME_ADMIN_PASSWORD"
-$env:POSTGRES_APP_PASSWORD = "CHANGE_ME_APP_PASSWORD"
-docker compose up -d postgres
-docker compose ps
-docker compose logs postgres
-```
-
-The Compose initialization script runs only when the PostgreSQL volume is
-created for the first time. Stop and start the service without deleting data:
+No local database process is required. `backend/scripts/check_db.py` is a
+non-destructive way to verify the connection:
 
 ```powershell
-docker compose stop postgres
-docker compose start postgres
+Set-Location backend
+.\.venv\Scripts\Activate.ps1
+python -m scripts.check_db
 ```
 
-Do not use `docker compose down -v` unless intentionally removing the database
-volume and its data.
+Expected output includes `database=neondb` and `user=neondb_owner`.
 
 ### 3. Configure environment variables
 
@@ -232,18 +290,28 @@ From the `backend` directory:
 Copy-Item .env.example .env
 ```
 
-Edit `.env` with local values. The safe template contains:
+Edit `.env` with local values. Copy `DATABASE_URL` from `local/neondb.txt`;
+the safe template contains:
 
 ```dotenv
-DATABASE_URL=postgresql+psycopg://pbl6_app:YOUR_PASSWORD@localhost:5432/pbl6
+# Lấy từ local/neondb.txt — không commit file này
+DATABASE_URL=postgresql://USER:PASSWORD@ep-xxxx.aws.neon.tech/neondb?sslmode=require
 SECRET_KEY=replace-with-a-long-random-development-secret-key
 UPLOAD_DIR=storage/uploads
 MAX_UPLOAD_SIZE_BYTES=52428800
+
+# Chế độ phân tích AI: auto | required | off
+AI_ANALYSIS_MODE=auto
+# Interpreter chạy pipeline NSFW-Detection (TF 2.20 cần Python 3.11)
+NSFW_PYTHON=
+# Thư mục này tương đối so với backend/
+NSFW_PIPELINE_DIR=NSFW-Detection/src
+NSFW_TIMEOUT_SECONDS=600
 ```
 
 Use URL encoding for reserved characters in a connection URL password. Never
-commit `.env` or share real credentials. The application reads settings from
-the backend working directory.
+commit `.env`, `local/neondb.txt` or share real credentials. The application reads
+settings from the backend working directory.
 
 ### 4. Apply migrations
 
@@ -255,8 +323,11 @@ alembic upgrade head
 alembic current
 ```
 
-The current migration is `0001_initial`. It creates the users, videos, labels,
-video labels, AI jobs, moderation reviews, and reports tables.
+Migrations are `0001_initial` (users, videos, labels, video labels, AI jobs,
+moderation reviews, reports) and `0002_session_appeals` (refresh tokens,
+revoked access tokens, password reset tokens, appeals). Both are already
+applied to the Neon database in this workspace, so `alembic current` must
+report `0002_session_appeals (head)`.
 
 Do not drop or reset a database to resolve a migration problem. Check the
 database URL, role permissions, schema, and current Alembic revision first.
@@ -296,14 +367,22 @@ Set-Location backend
 .\.venv\Scripts\python.exe -m pytest -q
 ```
 
-The current test fixture uses SQLite and local `test_storage`; it resets only
-that test database through the fixture. It does not reset the development
-PostgreSQL database.
+The test fixture uses SQLite and local `test_storage`; it resets only
+that test database through the fixture. It does not reset the online Neon
+database. Besides the API tests, `tests/test_ai_integration.py` covers the NSFW
+adapter's confidence parsing, the pipeline's skipped (not implemented)
+detectors, the mock fallback and the `required` mode failure path;
+`test_auth_session.py`, `test_video_stream_search.py` and
+`test_labels_appeals_admin.py` cover logout/refresh/password reset, profile
+updates, Range streaming, label search, label editing, appeals and admin
+statistics.
 
-The latest verified development run before this README rewrite was:
+The latest verified run in this workspace was:
 
-- `14 passed, 3 warnings`
-- Warnings are deprecations from FastAPI/Starlette/httpx and did not fail tests.
+- `42 passed, 3 warnings`
+- The `real_video_path` fixture reads `local/TestDataset-v2/` (recursive), so
+  the full API suite runs with real videos from the dataset.
+- Warnings are deprecations from FastAPI/Starlette and did not fail tests.
 
 ### Newman
 
@@ -355,21 +434,26 @@ The repository is a working backend MVP, not a complete production platform.
 The main known limitations are:
 
 - No frontend application is present.
-- AI and speech-to-text are mock-only.
-- Uploads are local filesystem files; there is no cloud storage adapter.
-- No video streaming/playback endpoint is implemented.
-- No pagination, search, or label filtering for the public/user video lists.
-- No refresh/revocation/logout/password-recovery workflow.
+- The Adult pipeline only runs when its own Python environment (TensorFlow,
+  PyTorch, OpenCV) is installed and selected with `NSFW_PYTHON`; otherwise the
+  job records the reason in its transcript and falls back to the mock result.
+- Speech-to-text and the violence, sound and text detectors are placeholders
+  (`DetectorNotImplementedError`) with empty model directories.
+- Uploads are local filesystem files; there is no cloud storage adapter, and
+  password reset has no mail delivery (the token is echoed only outside
+  `production`).
+- Feed, report and moderation-queue lists have no pagination; only
+  `/videos/search` accepts `limit`.
 - Moderation lacks robust locking, concurrency handling, evidence management,
   and a complete audit log.
-- Appeal, notifications, analytics, and production job queues are absent.
-- Admin management is an MVP and lacks Senior Moderator, audit, notification,
-  session-revocation, workload-statistics, and locked-work reassignment
-  behavior.
-- The current database migration is an initial schema migration; future
-  schema changes require reviewed Alembic migrations.
+- Notifications and production job queues are absent; statistics cover the
+  requested `days` window only.
+- Admin management lacks Senior Moderator, notification, session-revocation
+  and locked-work reassignment behavior.
+- Schema changes go through reviewed Alembic migrations (currently
+  `0002_session_appeals`).
 
-The authoritative requirement document is the local `SRS.docx`. It is not
+The authoritative requirement document is `local/SRS.docx`. It is not
 tracked in Git. The implementation report and API guide describe the current
 gap between that SRS and the implemented MVP.
 
@@ -393,10 +477,11 @@ automatically select or start the next module after completing one.
 
 ## Security and data-safety notes
 
-- Never commit `.env`, passwords, JWTs, API keys, database dumps, local media,
-  Postman environments, or runtime logs.
-- Use a least-privilege PostgreSQL application role.
+- Never commit `.env`, `local/neondb.txt`, passwords, JWTs, API keys, database
+  dumps, local media, Postman environments, or runtime logs.
 - Do not use production credentials or a production database for local tests.
+- The Neon connection string in `local/neondb.txt` is a secret: keep it out of
+  Git, chat logs and screenshots (`local/` is ignored as a whole).
 - Do not reset, drop, truncate, or delete a database to fix a connection or
   migration issue.
 - Keep the SRS and internal development artifacts local.
