@@ -2,8 +2,8 @@
 
 ## Requirements and scope
 
-- Treat `SRS.docx` as the authoritative product requirement document. It is
-  local-only and must not be committed.
+- Treat `local/SRS.docx` as the authoritative product requirement document. It
+  is local-only (`local/` is ignored by Git) and must not be committed.
 - Treat the current FastAPI source as the authority for implemented behavior;
   do not invent endpoints, schemas, permissions, or test results.
 - Keep `API_ENDPOINTS_GUIDE.md` synchronized with source, OpenAPI, and verified
