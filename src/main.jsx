@@ -22,8 +22,45 @@ const pipeline = [
   { title: 'Phân loại nội dung', detail: 'Gợi ý nhãn và điểm tin cậy' },
 ]
 
+function AuthScreen({ onLogin }) {
+  const [mode, setMode] = useState('login')
+  const [username, setUsername] = useState('')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
+  const [showPassword, setShowPassword] = useState(false)
+  const [feedback, setFeedback] = useState('')
+  const [success, setSuccess] = useState(false)
+  const isRegister = mode === 'register'
+
+  function switchMode(next) {
+    setMode(next)
+    setFeedback('')
+    setSuccess(false)
+    setUsername('')
+    setEmail('')
+    setPassword('')
+  }
+
+  function submit(event) {
+    event.preventDefault()
+    setFeedback('')
+    setSuccess(false)
+    if (isRegister) {
+      const valid = username.trim() && /^[^\s@]+@gmail\.com$/i.test(email.trim()) && password
+      if (!valid) { setFeedback('Vui lòng điền đủ thông tin và sử dụng địa chỉ Gmail hợp lệ.'); return }
+      setSuccess(true)
+      return
+    }
+    if (username.trim() === 'admin' && password === '123') { onLogin(); return }
+    setFeedback('Thông tin chưa chính xác. Bạn thử lại nhé.')
+  }
+
+  return <main className="auth-page"><header className="auth-topbar"><a className="brand" href="#home"><span className="brand-icon"><Icon name="play" size={15}/></span>Dut<span>Tok</span></a><span>Chia sẻ điều bạn yêu.</span></header><section className="auth-box"><div className="auth-mark"><Icon name="play" size={18}/></div><p className="auth-eyebrow">{isRegister?'TẠO TÀI KHOẢN DUTTOK':'CHÀO MỪNG BẠN ĐẾN VỚI DUTTOK'}</p><h1>{isRegister?'Tham gia DutTok':'Đăng nhập'}</h1><p className="auth-subtitle">{isRegister?'Tạo tài khoản để bắt đầu chia sẻ video.':'Tiếp tục khám phá những video bạn yêu thích.'}</p><form className="auth-form" onSubmit={submit} noValidate><label className="auth-field"><span>{isRegister?'Tên người dùng':'Email hoặc tên người dùng'}</span><input autoComplete="username" value={username} onChange={e=>setUsername(e.target.value)} placeholder={isRegister?'Nhập tên người dùng':'Nhập email hoặc tên người dùng'}/></label>{isRegister&&<label className="auth-field"><span>Địa chỉ Gmail</span><input type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="ban@gmail.com"/></label>}<label className="auth-field"><span>Mật khẩu</span><div className="auth-password"><input type={showPassword?'text':'password'} autoComplete={isRegister?'new-password':'current-password'} value={password} onChange={e=>setPassword(e.target.value)} placeholder={isRegister?'Tạo mật khẩu':'Nhập mật khẩu'}/><button type="button" onClick={()=>setShowPassword(v=>!v)} aria-label={showPassword?'Ẩn mật khẩu':'Hiện mật khẩu'}>{showPassword?'Ẩn':'Hiện'}</button></div></label>{feedback&&<p className="auth-feedback" role="alert">{feedback}</p>}{success&&<p className="auth-success" role="status">Đăng ký thành công trên bản demo. Bạn có thể đăng nhập.</p>}<button className="auth-submit" type="submit">{isRegister?'Tạo tài khoản':'Đăng nhập'}<Icon name="arrow" size={16}/></button></form><div className="auth-toggle">{isRegister?'Đã có tài khoản?':'Bạn mới đến DutTok?'}<button onClick={()=>switchMode(isRegister?'login':'register')}>{isRegister?'Đăng nhập':'Tạo tài khoản'}</button></div>{!isRegister&&<p className="demo-login-hint">Tài khoản demo: <strong>admin</strong> · Mật khẩu: <strong>123</strong></p>}</section><footer className="auth-footer">© 2026 DutTok <span>Giao diện demo</span></footer></main>
+}
+
 function App() {
   const [screen, setScreen] = useState('upload')
+  const [authenticated, setAuthenticated] = useState(false)
   const [file, setFile] = useState(null)
   const [videoUrl, setVideoUrl] = useState('')
   const [dragging, setDragging] = useState(false)
@@ -81,6 +118,8 @@ function App() {
   }
 
   const completedSteps = finished ? pipeline.length : Math.max(step, 0)
+
+  if (!authenticated) return <AuthScreen onLogin={() => setAuthenticated(true)} />
 
   return (
     <div className="app-shell">
