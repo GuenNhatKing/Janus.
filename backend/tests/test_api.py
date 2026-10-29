@@ -1,8 +1,8 @@
 from pathlib import Path
 
-from app.db import SessionLocal
+from app.db.session import SessionLocal
 from app.models import User, UserRole
-from app.services import validate_mp4_content
+from app.services.ai_service import validate_mp4_content
 
 
 def test_health(client):
@@ -473,3 +473,42 @@ def test_video_management_lists_owned_videos_and_enforces_delete_ownership(clien
     assert other_delete.status_code == 404
     assert owner_delete.status_code == 204
     assert all(item["id"] != video_id for item in after_delete.json())
+
+
+def test_video_stream_serves_published_video_and_hides_pending_one(client, real_video_path):
+    client.post(
+        "/api/v1/auth/register",
+        json={"email": "stream@example.com", "display_name": "Streamer", "password": "password123"},
+    )
+    token = client.post(
+        "/api/v1/auth/login",
+        json={"email": "stream@example.com", "password": "password123"},
+    ).json()["access_token"]
+    headers = {"Authorization": f"Bearer {token}"}
+
+    uploaded = client.post(
+        "/api/v1/videos",
+        headers=headers,
+        files={"file": (real_video_path.name, real_video_path.read_bytes(), "video/mp4")},
+    )
+    assert uploaded.status_code == 201, uploaded.text
+    video_id = uploaded.json()["id"]
+
+    # Video đã publish: ai cũng phát được mà không cần token.
+    published = client.get(f"/api/v1/videos/{video_id}/stream")
+    assert published.status_code == 200
+    assert published.headers["content-type"].startswith("video/mp4")
+    assert published.content == real_video_path.read_bytes()
+
+    # Báo cáo chuyển video sang hàng đợi kiểm duyệt: ẩn danh không xem được, chủ video vẫn xem được.
+    reported = client.post(
+        f"/api/v1/videos/{video_id}/reports",
+        headers=headers,
+        json={"reason": "Nội dung cần xem xét"},
+    )
+    assert reported.status_code == 201
+    assert client.get(f"/api/v1/videos/{video_id}/stream").status_code == 404
+    assert client.get(f"/api/v1/videos/{video_id}/stream", headers=headers).status_code == 200
+
+    missing = client.get("/api/v1/videos/00000000-0000-0000-0000-000000000000/stream")
+    assert missing.status_code == 404

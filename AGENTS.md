@@ -13,13 +13,17 @@
 
 ## Architecture
 
-- Backend entry point: `backend/app/main.py`.
-- Pydantic request/response schemas: `backend/app/schemas.py`.
-- SQLAlchemy models and enums: `backend/app/models.py`.
-- Authentication and RBAC: `backend/app/security.py` and
-  `backend/app/dependencies.py`.
-- Database setup and sessions: `backend/app/db.py`; migrations are under
-  `backend/alembic/`.
+- Backend entry point: `backend/src/app/main.py`.
+- API layer: `backend/src/app/api/v1/` (router cộng các endpoint module).
+- Pydantic request/response schemas: `backend/src/app/schemas/`.
+- SQLAlchemy models and enums: `backend/src/app/models/`.
+- Authentication and RBAC: `backend/src/app/core/security.py` and
+  `backend/src/app/dependencies.py`.
+- Business logic: `backend/src/app/services/`; shared domain errors live in
+  `backend/src/app/exceptions.py`.
+- Database setup and sessions: `backend/src/app/db/session.py`; migrations are
+  under `backend/alembic/`.
+- Frontend (Vite + React): `frontend/src/`.
 - Current AI processing is a local mock adapter. Do not add external AI or
   cloud-storage calls unless explicitly requested.
 

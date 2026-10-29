@@ -33,6 +33,64 @@ newman run .\local-tests\postman\video-upload_v1.0.0.postman_collection.json `
 
 Video trong `TestDataset` và các fixture/log Postman local không được commit.
 
+## Cấu trúc thư mục
+
+```text
+.
+├── backend/            # FastAPI, layout src/
+│   ├── src/app/
+│   │   ├── api/v1/     # router + endpoints theo tài nguyên
+│   │   ├── core/       # config, security
+│   │   ├── db/         # session, engine, Base
+│   │   ├── models/     # entity SQLAlchemy
+│   │   ├── schemas/    # Pydantic request/response
+│   │   ├── services/   # nghiệp vụ
+│   │   ├── dependencies.py, exceptions.py, main.py
+│   ├── tests/          # pytest
+│   ├── alembic/        # migration
+│   └── pyproject.toml  # pytest pythonpath = src
+├── frontend/           # Vite + React
+│   └── src/
+│       ├── app/        # App, routes, guards, layout
+│       ├── pages/      # trang được định tuyến
+│       ├── features/   # auth, videos, moderation (api + hooks + components)
+│       ├── shared/     # api client, component, lib dùng chung
+│       └── styles/     # CSS theo khu vực
+├── docs/               # tài liệu, báo cáo dự án
+├── docker/ + docker-compose.yml
+└── local/, local-tests/   # dữ liệu và log cục bộ (không commit)
+```
+
+## Chạy frontend và kết nối backend
+
+Backend (cửa sổ 1):
+
+```powershell
+cd E:\PBL6\backend
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --app-dir src   # http://127.0.0.1:8000
+```
+
+Frontend (cửa sổ 2):
+
+```powershell
+cd E:\PBL6\frontend
+npm install
+npm run dev                                   # http://localhost:5173
+```
+
+Cách hai bên nối với nhau:
+
+- Chế độ dev: Vite proxy mọi request `/api` sang `http://127.0.0.1:8000`, nên
+  trình duyệt gọi cùng origin và không cần CORS. Đổi đích bằng biến
+  `VITE_API_PROXY_TARGET`.
+- Chế độ production: đặt `VITE_API_BASE_URL` (frontend) trỏ tới origin backend
+  và khai báo origin frontend trong `CORS_ORIGINS` (backend, mặc định
+  `http://localhost:5173,http://127.0.0.1:5173`).
+- Luồng đã kết nối: đăng ký/đăng nhập lấy JWT → `POST /api/v1/videos` tải video
+  → poll `GET /api/v1/videos/{id}/ai` tới khi job xong → feed phát video qua
+  `GET /api/v1/videos/{id}/stream` → báo cáo đưa video vào hàng đợi kiểm duyệt.
+
 ## Thiết lập PostgreSQL trên Windows 10/11
 
 Phần này mô tả quy trình từ máy chưa có PostgreSQL đến khi Backend truy vấn
@@ -118,6 +176,7 @@ Backend cũng có thể kiểm tra kết nối mà không in mật khẩu:
 ```powershell
 cd E:\PBL6\backend
 .\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = "src"
 python -m scripts.check_db
 ```
 
@@ -202,7 +261,7 @@ Get-Service -Name "postgresql*" | Where-Object Status -eq "Running"
 Test-NetConnection localhost -Port 5432
 psql -h localhost -p 5432 -U pbl6_app -d pbl6 -c "SELECT 1;"
 alembic current
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --app-dir src
 ```
 
 Trong PowerShell khác:
@@ -307,6 +366,7 @@ Không reset hoặc drop database để áp dụng migration.
 - `POST /api/v1/videos`
 - `GET /api/v1/videos`
 - `GET /api/v1/feed`
+- `GET /api/v1/videos/{video_id}/stream`
 - `GET /api/v1/videos/{video_id}/ai`
 - `DELETE /api/v1/videos/{video_id}`
 - `POST /api/v1/videos/{video_id}/reports`

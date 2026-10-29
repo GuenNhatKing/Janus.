@@ -1,0 +1,258 @@
+/* ===== App shell ===== */
+.shell {
+  min-height: 100vh;
+  background: var(--bg);
+}
+
+.sidenav {
+  position: fixed;
+  inset: 0 auto 0 0;
+  width: var(--sidebar-width);
+  display: flex;
+  flex-direction: column;
+  padding: 20px 12px 16px;
+  border-right: 1px solid var(--line);
+  background: var(--bg-soft);
+  z-index: 30;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 4px 10px 2px;
+  font-size: 21px;
+  font-weight: 780;
+  letter-spacing: -1.1px;
+  color: var(--text);
+}
+
+/* Chữ thương hiệu để nguyên màu nền; dấu ấn đã đủ nổi bật. */
+
+.brand-mark {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+}
+
+.side-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 26px;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 44px;
+  padding: 0 12px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 13.5px;
+  font-weight: 560;
+  text-align: left;
+  transition: background 0.15s, color 0.15s;
+}
+
+.nav-item:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+
+.nav-item.active {
+  background: rgba(254, 44, 85, 0.14);
+  color: #fff;
+}
+
+.nav-item.active svg {
+  color: var(--accent);
+}
+
+.side-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+.side-user {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 4px 8px;
+}
+
+.side-user-copy {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.side-user-copy strong {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.side-user-copy span {
+  color: var(--text-faint);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.side-note {
+  color: var(--text-faint);
+  font-size: 10.5px;
+  line-height: 1.5;
+  padding: 0 8px;
+}
+
+/* ===== Main column ===== */
+.shell-main {
+  margin-left: var(--sidebar-width);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 25;
+  height: var(--topbar-height);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 0 24px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(0, 0, 0, 0.88);
+  backdrop-filter: blur(10px);
+}
+
+.topbar-title {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--text-faint);
+  min-width: 0;
+}
+
+.topbar-title strong {
+  color: var(--text);
+  font-weight: 640;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.crumb-sep {
+  color: #3a3a3a;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.role-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 30px;
+  padding: 0 11px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--text-dim);
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+.role-pill i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--ok);
+}
+
+.shell-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: calc(100vh - var(--topbar-height));
+}
+
+/* ===== Mobile: sidebar thành thanh điều hướng dưới ===== */
+@media (max-width: 900px) {
+  .sidenav {
+    inset: auto 0 0 0;
+    width: auto;
+    height: 64px;
+    flex-direction: row;
+    align-items: center;
+    padding: 0 6px;
+    border-right: 0;
+    border-top: 1px solid var(--line);
+  }
+
+  .brand,
+  .side-foot {
+    display: none;
+  }
+
+  .side-nav {
+    flex: 1;
+    flex-direction: row;
+    justify-content: space-around;
+    gap: 2px;
+    margin-top: 0;
+  }
+
+  .nav-item {
+    flex-direction: column;
+    gap: 3px;
+    height: 56px;
+    padding: 0 6px;
+    font-size: 10px;
+    justify-content: center;
+  }
+
+  .shell-main {
+    margin-left: 0;
+    padding-bottom: 64px;
+  }
+
+  .topbar {
+    padding: 0 14px;
+    height: 54px;
+  }
+
+  .role-pill {
+    display: none;
+  }
+
+  .shell-content {
+    min-height: calc(100vh - 54px - 64px);
+  }
+
+  .page {
+    padding: 22px 14px 36px;
+  }
+}

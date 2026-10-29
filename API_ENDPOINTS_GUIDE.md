@@ -15,8 +15,9 @@ Frontend hay kết nối trực tiếp đến PostgreSQL.
 - Role hợp lệ: `user`, `moderator`, `admin`.
 - Video hiện chỉ nhận MP4, tối đa 50 MiB, lưu local trong `UPLOAD_DIR`.
 - AI hiện là `run_mock_analysis`; không gọi Cloud Storage hoặc API AI thật.
-- Không có endpoint logout, refresh token, password reset, streaming hoặc admin
-  user-management trong application hiện tại.
+- Không có endpoint logout, refresh token hoặc password reset. Admin
+  user-management và endpoint phát video (`GET /api/v1/videos/{video_id}/stream`)
+  đã tồn tại, mô tả lần lượt ở mục 3.15–3.19 và 3.20.
 
 ### Trạng thái xác minh
 
@@ -401,12 +402,15 @@ Authorization: Bearer <access_token>
     "caption": null,
     "size_bytes": 2609079,
     "status": "published",
-    "created_at": "2026-10-25T15:00:00Z"
+    "created_at": "2026-10-25T15:00:00Z",
+    "owner_name": "Traveler"
   }
 ]
 ```
 
 HTTP `200`; có thể là `[]`.
+
+- `owner_name`: tên hiển thị của chủ video (dùng cho feed); nullable.
 
 **F. Lỗi thường gặp**: `401` khi thiếu/sai JWT.
 
@@ -748,7 +752,9 @@ Authorization: Bearer <moderator_or_admin_token>
 
 **D. Request body**: Không có.
 
-**E. Response**: HTTP `200`, mảng `ReportResponse`; có thể là `[]`.
+**E. Response**: HTTP `200`, mảng `ReportResponse` (`id`, `video_id`,
+`video_caption`, `reason`, `status`); có thể là `[]`. `video_caption` là mô tả
+hoặc tên tệp của video bị báo cáo để moderator nhận ra video.
 
 **F. Lỗi thường gặp**
 
@@ -932,6 +938,39 @@ curl -X PATCH http://127.0.0.1:8000/api/v1/admin/users/<user_id>/role ^
   -d "{\"role\":\"moderator\"}"
 ```
 
+### 3.20 Phát video (stream)
+
+**Thông tin chung**
+
+- Method: `GET`
+- Path: `/api/v1/videos/{video_id}/stream`
+- Operation ID: `stream_video`
+- Full URL mẫu: `http://127.0.0.1:8000/api/v1/videos/<video_id>/stream`
+- Chức năng: trả tệp MP4 để trình duyệt phát trực tiếp (feed, hồ sơ, hàng đợi kiểm duyệt).
+- Module: Video Management
+- Authentication: Không bắt buộc; `Authorization` chỉ cần khi video chưa `published`.
+- Role/permission: video `published` cho mọi người; video chưa publish chỉ cho chủ video, `moderator`, `admin`.
+- Content-Type: `video/mp4`
+- Trạng thái xác minh: **Đã test** — Pytest `test_video_stream_serves_published_video_and_hides_pending_one`.
+
+**A/B. Path và query parameters**: path `video_id` (UUID). Không có query.
+
+**C. Headers**: tùy chọn `Authorization: Bearer <access_token>`.
+
+**D. Request body**: Không có.
+
+**E. Response**: HTTP `200` với body là tệp MP4 và header `Cache-Control: private, max-age=60`. Trình duyệt thường gửi `Range`; Starlette trả `206 Partial Content` cho phần được yêu cầu.
+
+**F. Lỗi thường gặp**
+
+- `404`: video không tồn tại, đã soft-delete, chưa `published` mà caller không có quyền, hoặc tệp không còn trong `UPLOAD_DIR`.
+
+**G. Ví dụ gọi API**
+
+```bash
+curl -OJ http://127.0.0.1:8000/api/v1/videos/<video_id>/stream
+```
+
 ## 4. Luồng gọi API thực tế
 
 ### 4.1 Tạo user và đọc profile
@@ -985,14 +1024,15 @@ curl -X PATCH http://127.0.0.1:8000/api/v1/admin/users/<user_id>/role ^
 | 17 | PATCH | `/api/v1/admin/users/{user_id}/status` | Admin Management | JWT + admin | Đã test |
 | 18 | GET | `/api/v1/admin/moderators` | Admin Management | JWT + admin | Đã test |
 | 19 | PATCH | `/api/v1/admin/users/{user_id}/role` | Admin Management | JWT + admin | Đã test |
+| 20 | GET | `/api/v1/videos/{video_id}/stream` | Video Management | Không (JWT nếu chưa published) | Đã test |
 
 ## 6. Đối chiếu và giới hạn
 
-- OpenAPI runtime sau thay đổi đã trả 18 path và 19 operation như bảng trên.
+- OpenAPI runtime sau thay đổi đã trả 19 path và 20 operation như bảng trên.
 - Không có router khác được đăng ký trong application hiện tại.
 - Không có query pagination, search hoặc filter trong các endpoint list.
-- Không có endpoint lấy file video/streaming; `storage_path` không được trả ra
-  trong `VideoResponse`.
+- File video chỉ lấy được qua endpoint stream ở mục 3.20; `storage_path` không
+  được trả ra trong `VideoResponse`.
 - Không có logout, token revocation, refresh token hoặc password recovery.
 - Không có Admin Management API dù enum `admin` và quyền moderation đã tồn tại.
 - Endpoint quyết định video moderation đã đối chiếu source/OpenAPI nhưng chưa có

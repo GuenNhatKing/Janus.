@@ -40,4 +40,5 @@ TestDataset.tar
 /SRS.docx
 /SRS_extracted.txt
 node_modules/
+dist/
 
