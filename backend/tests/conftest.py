@@ -3,8 +3,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from uuid import uuid4
 
-os.environ["DATABASE_URL"] = "sqlite:///./test.db"
-os.environ["UPLOAD_DIR"] = "test_storage"
+BACKEND_ROOT = Path(__file__).resolve().parents[1]
+TEST_DB_PATH = BACKEND_ROOT / "test.db"
+TEST_STORAGE_PATH = BACKEND_ROOT / "test_storage"
+
+os.environ["DATABASE_URL"] = f"sqlite:///{TEST_DB_PATH.as_posix()}"
+os.environ["UPLOAD_DIR"] = str(TEST_STORAGE_PATH)
 
 import pytest
 from fastapi.testclient import TestClient
@@ -16,7 +20,10 @@ from app.main import app
 from app.models import AIJob, User, UserRole, Video, VideoStatus
 from app.security import hash_password
 
-engine = create_engine("sqlite:///./test.db", connect_args={"check_same_thread": False})
+engine = create_engine(
+    f"sqlite:///{TEST_DB_PATH.as_posix()}",
+    connect_args={"check_same_thread": False},
+)
 TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 TEST_DATASET = Path(__file__).resolve().parents[2] / "local" / "TestDataset-v2"
 

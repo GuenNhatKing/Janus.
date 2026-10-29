@@ -14,6 +14,11 @@ __pycache__/
 .coverage
 htmlcov/
 
+# Frontend dependencies and build output
+node_modules/
+frontend/dist/
+frontend/.vite/
+
 # Runtime data and generated database files
 backend/storage/
 backend/test_storage/
@@ -33,6 +38,7 @@ TestDataset.tar
 # Local Postman workspaces, collections, fixtures, and logs
 /local-tests/postman/
 /local-tests/logs/
+/local-tests/ai-real-inference-*/
 /.postman/
 /postman/
 
@@ -44,5 +50,11 @@ node_modules/
 
 *.pth
 *.keras
+*.h5
+*.hdf5
+*.onnx
+*.pt
 backend/NSFW-Detection/src/models/
 
+# All local-only project data, credentials, datasets, and working instructions
+/local/

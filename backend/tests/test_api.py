@@ -4,6 +4,8 @@ from app.db import SessionLocal
 from app.models import User, UserRole
 from app.services import validate_mp4_content
 
+TEST_STORAGE_PATH = Path(__file__).resolve().parents[1] / "test_storage"
+
 
 def test_health(client):
     response = client.get("/health")
@@ -351,7 +353,7 @@ def test_video_upload_requires_auth_and_accepts_mp4(client, real_video_path):
     assert uploaded.json()["original_filename"] == real_video_path.name
     assert uploaded.json()["caption"] == "Upload test"
     assert uploaded.json()["status"] == "processing"
-    assert any(path.read_bytes() == real_video for path in Path("test_storage").glob("*.mp4"))
+    assert any(path.read_bytes() == real_video for path in TEST_STORAGE_PATH.glob("*.mp4"))
     assert invalid_type.status_code == 400
     assert missing_file.status_code == 422
 

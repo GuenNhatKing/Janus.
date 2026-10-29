@@ -138,7 +138,7 @@ chạy và có transaction database.
 | [main.py](backend/app/main.py) | Tạo FastAPI app, startup storage và `/health` | Entry point `app.main:app` |
 | [config.py](backend/app/config.py) | Tạo `Settings`, đọc `.env`, chuẩn hóa URL | Quản lý cấu hình |
 | [db.py](backend/app/db.py) | Tạo `Base`, engine, `SessionLocal`, `get_db` | Kết nối SQLAlchemy |
-| [requirements.txt](backend/requirements.txt) | Khai báo FastAPI, SQLAlchemy, psycopg, Alembic, pytest | Dependency reproducibility |
+| [pyproject.toml](pyproject.toml) và `uv.lock` | Khai báo và khóa dependency FastAPI, SQLAlchemy, psycopg, Alembic | Dependency reproducibility |
 | [alembic.ini](backend/alembic.ini) | Khai báo script location và URL fallback | Cấu hình Alembic |
 | [alembic/env.py](backend/alembic/env.py) | Nạp settings, metadata và chạy online/offline migration | Cầu nối Alembic-model |
 
@@ -432,7 +432,7 @@ không làm test fail.
 |---|---|
 | [README.md](README.md) | Hướng dẫn Windows PostgreSQL, Docker, `.env`, migration, test, API và troubleshooting |
 | [backend/.env.example](backend/.env.example) | Mẫu `DATABASE_URL`, secret key, upload directory và size limit, không có secret thật |
-| [requirements.txt](backend/requirements.txt) | Dependency runtime/test |
+| [pyproject.toml](pyproject.toml) và `uv.lock` | Dependency runtime/dev được quản lý bằng uv |
 | [docker-compose.yml](docker-compose.yml) | PostgreSQL 16 tùy chọn, volume và role bootstrap qua environment |
 | [docker/postgres/01-create-app-role.sh](docker/postgres/01-create-app-role.sh) | Tạo role `pbl6_app` khi volume Docker khởi tạo lần đầu |
 | [backend/scripts/check_db.py](backend/scripts/check_db.py) | Kiểm tra database/user/version |

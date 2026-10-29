@@ -1,8 +1,8 @@
 # PBL6 — AI Short Video Moderation Platform
 
-PBL6 is a FastAPI backend for a short-video platform with JWT authentication,
-local video storage, AI content analysis, user reports, and moderation
-workflows.
+PBL6 is a Vite/React frontend and FastAPI backend for a short-video platform
+with JWT authentication, local video storage, AI content analysis, user
+reports, and moderation workflows.
 
 AI analysis is integrated with the local `NSFW-Detection` pipeline (Adult
 detection, TensorFlow + PyTorch) through a subprocess adapter. While the AI
@@ -10,9 +10,9 @@ environment is not installed, the job records why and falls back to the mock
 result instead of failing. Violence, sound and text/STT detection are still
 detector placeholders, so the code never pretends to be complete.
 
-The project is currently backend-only. A frontend application, cloud object
-storage, and production-grade moderation infrastructure are not included in
-the current repository.
+The frontend is now located under `frontend/`. Cloud object storage and
+production-grade moderation infrastructure are not included in the current
+repository.
 
 ## Contents
 
@@ -176,10 +176,11 @@ online Neon database. The running backend reads `DATABASE_URL` from
 | Automated tests | Pytest and FastAPI TestClient |
 | API collections | Postman/Newman local collections |
 
-Dependency ranges are maintained in
-[backend/requirements.txt](backend/requirements.txt). AI dependencies live in
-[backend/NSFW-Detection/src/requirements.txt](backend/NSFW-Detection/src/requirements.txt) and
-are installed separately so the API environment stays small.
+Backend dependency ranges are maintained in the root
+[pyproject.toml](pyproject.toml) and resolved in `uv.lock`. AI dependencies
+are maintained in the separate
+[backend/NSFW-Detection/src/pyproject.toml](backend/NSFW-Detection/src/pyproject.toml)
+and its `uv.lock`, so the API environment stays small.
 
 ## Repository structure
 
@@ -204,15 +205,15 @@ are installed separately so the API environment stays small.
 │   │   └── src/
 │   │       ├── proposed/      # Adult detection pipeline (4 stages)
 │   │       ├── models/        # Adult models + {violence,sound,text}/ placeholders
-│   │       ├── requirements.txt  # CPU dependencies (pruned to what src/ imports)
+│   │       ├── pyproject.toml    # AI dependencies managed by uv
+│   │       ├── uv.lock           # AI dependency lockfile
 │   │       └── README.md      # Pipeline usage, configuration, benchmarks
 │   ├── alembic/versions/      # Database migrations
 │   ├── scripts/check_db.py    # Non-destructive database connectivity check
 │   ├── tests/                 # Official Pytest suite
 │   ├── .env.example           # Safe configuration template (.env is ignored)
-│   ├── alembic.ini
-│   └── requirements.txt
-├── frontend/                  # Frontend (chưa có mã nguồn; SRS dùng ReactJS)
+│   └── alembic.ini
+├── frontend/                  # Vite/React frontend and npm lockfile
 ├── local/                     # Toàn bộ bị Git bỏ qua
 │   ├── SRS.docx               # Tài liệu yêu cầu chính thức
 │   ├── neondb.txt             # Chuỗi kết nối Neon PostgreSQL
@@ -222,7 +223,8 @@ are installed separately so the API environment stays small.
 ├── PBL6_Implementation_Report.md
 ├── AGENTS.md                  # Project instructions for contributors/agents
 ├── README.md
-├── pyproject.toml             # Python 3.14 project metadata (uv)
+├── pyproject.toml             # Python runtime/dev dependencies managed by uv
+├── uv.lock                    # Reproducible Python dependency lockfile
 └── .python-version
 ```
 
@@ -235,13 +237,12 @@ Git as well.
 
 Install or make available:
 
-- Python 3.14 for the backend (`.python-version` and `requires-python >= 3.14`);
-  Python 3.14.8 is the verified interpreter in this workspace.
+- Python 3.12 or another interpreter accepted by `pyproject.toml`.
+- `uv` for Python environments and dependencies.
+- Node.js and npm for the frontend.
 - Access to the Neon PostgreSQL connection string stored in `local/neondb.txt`.
-- Optional — only to run the real Adult pipeline: a second interpreter (Python
-  3.11 recommended) with the NSFW-Detection dependencies installed, selected via
-  `NSFW_PYTHON`. TensorFlow 2.20 does not support Python 3.14, so the AI
-  environment is intentionally kept separate from the API environment.
+- Optional — only to run the real Adult pipeline: the separate uv project at
+  `backend/NSFW-Detection/src`, selected via `NSFW_PYTHON` when needed.
 - Git.
 - Newman if API collection tests are required.
 
@@ -250,20 +251,27 @@ production databases for local development or tests.
 
 ## Local setup
 
-### 1. Clone and create a virtual environment
+### 1. Clone and create the uv environment
 
 ```powershell
 git clone https://github.com/Hrk9324/PBL6_AI_short_video_moderation.git
 Set-Location PBL6_AI_short_video_moderation
 
-py -3.14 -m venv .venv
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r backend\requirements.txt
+uv venv
+uv sync
 ```
 
-If `py -3.14` is not available, use an installed Python version compatible
-with the dependency ranges and keep the selected interpreter consistent for
-installation, migrations, and tests.
+`uv.lock` is the source of resolved Python versions. Do not install backend
+dependencies into a separate `backend\.venv`; run backend commands through
+`uv run` from the repository root.
+
+Install frontend dependencies separately:
+
+```powershell
+Set-Location frontend
+npm install
+Set-Location ..
+```
 
 ### 2. Database: online Neon PostgreSQL
 
@@ -276,8 +284,7 @@ non-destructive way to verify the connection:
 
 ```powershell
 Set-Location backend
-.\.venv\Scripts\Activate.ps1
-python -m scripts.check_db
+uv run python -m scripts.check_db
 ```
 
 Expected output includes `database=neondb` and `user=neondb_owner`.
@@ -317,10 +324,9 @@ settings from the backend working directory.
 
 ```powershell
 Set-Location backend
-.\.venv\Scripts\Activate.ps1
-alembic current
-alembic upgrade head
-alembic current
+uv run alembic current
+uv run alembic upgrade head
+uv run alembic current
 ```
 
 Migrations are `0001_initial` (users, videos, labels, video labels, AI jobs,
@@ -334,10 +340,17 @@ database URL, role permissions, schema, and current Alembic revision first.
 
 ## Running the backend
 
-From `backend` with the virtual environment active:
+From the repository root:
 
 ```powershell
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uv run --directory backend uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+Run the frontend in a second terminal:
+
+```powershell
+Set-Location frontend
+npm run dev
 ```
 
 Verify readiness from another terminal:
@@ -358,31 +371,11 @@ available at <http://127.0.0.1:8000/openapi.json>.
 
 ## Testing
 
-### Pytest
-
-Run the official backend test suite:
-
-```powershell
-Set-Location backend
-.\.venv\Scripts\python.exe -m pytest -q
-```
-
-The test fixture uses SQLite and local `test_storage`; it resets only
-that test database through the fixture. It does not reset the online Neon
-database. Besides the API tests, `tests/test_ai_integration.py` covers the NSFW
-adapter's confidence parsing, the pipeline's skipped (not implemented)
-detectors, the mock fallback and the `required` mode failure path;
-`test_auth_session.py`, `test_video_stream_search.py` and
-`test_labels_appeals_admin.py` cover logout/refresh/password reset, profile
-updates, Range streaming, label search, label editing, appeals and admin
-statistics.
-
-The latest verified run in this workspace was:
-
-- `42 passed, 3 warnings`
-- The `real_video_path` fixture reads `local/TestDataset-v2/` (recursive), so
-  the full API suite runs with real videos from the dataset.
-- Warnings are deprecations from FastAPI/Starlette and did not fail tests.
+The current verification workflow does not use Pytest. Use Newman against the
+running backend and the independent AI smoke command documented in
+[docs/TESTING.md](docs/TESTING.md). Existing Pytest files are retained as
+repository history, but their results are not evidence for the current
+functional status.
 
 ### Newman
 
@@ -396,8 +389,8 @@ newman run .\local-tests\postman\auth-jwt_v1.0.0.postman_collection.json `
 ```
 
 Collections exist for Auth/JWT, User Profile, Video Upload, Video Management,
-AI Analysis, Content Report, Moderation, and Admin Management. Their detailed
-logs remain under `local-tests/logs/` and must not be committed.
+real AI integration, Content Report, Moderation, and Admin Management. Their
+detailed logs remain under `local-tests/logs/` and must not be committed.
 
 Verified local Newman results recorded in the module logs include:
 
@@ -417,8 +410,10 @@ badge or a guarantee for every future environment.
 
 ## API documentation
 
-See [API_ENDPOINTS_GUIDE.md](API_ENDPOINTS_GUIDE.md) for the complete,
-source-verified request guide. It includes:
+See [docs/API_GUIDE.md](docs/API_GUIDE.md) for the current API guide. The
+older [API_ENDPOINTS_GUIDE.md](API_ENDPOINTS_GUIDE.md) is retained as a
+historical/source reference and should not be used when it conflicts with the
+current guide. The current guide includes:
 
 - All registered endpoints and operation IDs.
 - Authentication and role requirements.
@@ -428,12 +423,24 @@ source-verified request guide. It includes:
 - Postman/cURL examples and workflow sequences.
 - A distinction between runtime-tested and source/OpenAPI-only behavior.
 
+## Documentation map
+
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md): setup and user workflows.
+- [docs/API_GUIDE.md](docs/API_GUIDE.md): endpoint contract and examples.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): runtime components and flows.
+- [docs/DATABASE.md](docs/DATABASE.md): Neon, migrations, and data safety.
+- [docs/AI_MODEL.md](docs/AI_MODEL.md): real model loading and limitations.
+- [docs/TESTING.md](docs/TESTING.md): Newman and independent AI checks.
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): confirmed diagnostics.
+- [docs/README.md](docs/README.md): documentation index and status.
+
 ## Project status and limitations
 
 The repository is a working backend MVP, not a complete production platform.
 The main known limitations are:
 
-- No frontend application is present.
+- The frontend is present under `frontend/`, but its coverage of the full SRS
+  user/moderation workflows is still incomplete.
 - The Adult pipeline only runs when its own Python environment (TensorFlow,
   PyTorch, OpenCV) is installed and selected with `NSFW_PYTHON`; otherwise the
   job records the reason in its transcript and falls back to the mock result.
@@ -461,12 +468,12 @@ gap between that SRS and the implemented MVP.
 
 Before changing behavior:
 
-1. Read [AGENTS.md](AGENTS.md), the relevant SRS section, and
+1. Read the local project instructions in [local/AGENTS.md](local/AGENTS.md),
+   the relevant SRS section, and
    [API_ENDPOINTS_GUIDE.md](API_ENDPOINTS_GUIDE.md).
 2. Inspect the existing route, schema, model, dependency, migration, and test.
 3. Make a focused change without overwriting unrelated working-tree changes.
-4. Add or update official Pytest coverage.
-5. Run Pytest and, for API modules, the corresponding local Newman collection.
+4. Run the corresponding local Newman collection or independent script.
 6. Record module test history under the ignored local log directory.
 7. Update the API guide when the public contract changes.
 8. Review `git diff`, `git diff --check`, and staged file names before any
