@@ -358,31 +358,11 @@ available at <http://127.0.0.1:8000/openapi.json>.
 
 ## Testing
 
-### Pytest
-
-Run the official backend test suite:
-
-```powershell
-Set-Location backend
-.\.venv\Scripts\python.exe -m pytest -q
-```
-
-The test fixture uses SQLite and local `test_storage`; it resets only
-that test database through the fixture. It does not reset the online Neon
-database. Besides the API tests, `tests/test_ai_integration.py` covers the NSFW
-adapter's confidence parsing, the pipeline's skipped (not implemented)
-detectors, the mock fallback and the `required` mode failure path;
-`test_auth_session.py`, `test_video_stream_search.py` and
-`test_labels_appeals_admin.py` cover logout/refresh/password reset, profile
-updates, Range streaming, label search, label editing, appeals and admin
-statistics.
-
-The latest verified run in this workspace was:
-
-- `42 passed, 3 warnings`
-- The `real_video_path` fixture reads `local/TestDataset-v2/` (recursive), so
-  the full API suite runs with real videos from the dataset.
-- Warnings are deprecations from FastAPI/Starlette and did not fail tests.
+The current verification workflow does not use Pytest. Use Newman against the
+running backend and the independent AI smoke command documented in
+[docs/TESTING.md](docs/TESTING.md). Existing Pytest files are retained as
+repository history, but their results are not evidence for the current
+functional status.
 
 ### Newman
 
@@ -396,8 +376,8 @@ newman run .\local-tests\postman\auth-jwt_v1.0.0.postman_collection.json `
 ```
 
 Collections exist for Auth/JWT, User Profile, Video Upload, Video Management,
-AI Analysis, Content Report, Moderation, and Admin Management. Their detailed
-logs remain under `local-tests/logs/` and must not be committed.
+real AI integration, Content Report, Moderation, and Admin Management. Their
+detailed logs remain under `local-tests/logs/` and must not be committed.
 
 Verified local Newman results recorded in the module logs include:
 
@@ -417,8 +397,10 @@ badge or a guarantee for every future environment.
 
 ## API documentation
 
-See [API_ENDPOINTS_GUIDE.md](API_ENDPOINTS_GUIDE.md) for the complete,
-source-verified request guide. It includes:
+See [docs/API_GUIDE.md](docs/API_GUIDE.md) for the current API guide. The
+older [API_ENDPOINTS_GUIDE.md](API_ENDPOINTS_GUIDE.md) is retained as a
+historical/source reference and should not be used when it conflicts with the
+current guide. The current guide includes:
 
 - All registered endpoints and operation IDs.
 - Authentication and role requirements.
@@ -427,6 +409,17 @@ source-verified request guide. It includes:
 - Response examples and implementation-backed errors.
 - Postman/cURL examples and workflow sequences.
 - A distinction between runtime-tested and source/OpenAPI-only behavior.
+
+## Documentation map
+
+- [docs/USER_GUIDE.md](docs/USER_GUIDE.md): setup and user workflows.
+- [docs/API_GUIDE.md](docs/API_GUIDE.md): endpoint contract and examples.
+- [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): runtime components and flows.
+- [docs/DATABASE.md](docs/DATABASE.md): Neon, migrations, and data safety.
+- [docs/AI_MODEL.md](docs/AI_MODEL.md): real model loading and limitations.
+- [docs/TESTING.md](docs/TESTING.md): Newman and independent AI checks.
+- [docs/TROUBLESHOOTING.md](docs/TROUBLESHOOTING.md): confirmed diagnostics.
+- [docs/README.md](docs/README.md): documentation index and status.
 
 ## Project status and limitations
 
@@ -461,12 +454,12 @@ gap between that SRS and the implemented MVP.
 
 Before changing behavior:
 
-1. Read [AGENTS.md](AGENTS.md), the relevant SRS section, and
+1. Read the local project instructions in [local/AGENTS.md](local/AGENTS.md),
+   the relevant SRS section, and
    [API_ENDPOINTS_GUIDE.md](API_ENDPOINTS_GUIDE.md).
 2. Inspect the existing route, schema, model, dependency, migration, and test.
 3. Make a focused change without overwriting unrelated working-tree changes.
-4. Add or update official Pytest coverage.
-5. Run Pytest and, for API modules, the corresponding local Newman collection.
+4. Run the corresponding local Newman collection or independent script.
 6. Record module test history under the ignored local log directory.
 7. Update the API guide when the public contract changes.
 8. Review `git diff`, `git diff --check`, and staged file names before any

@@ -33,6 +33,7 @@ TestDataset.tar
 # Local Postman workspaces, collections, fixtures, and logs
 /local-tests/postman/
 /local-tests/logs/
+/local-tests/ai-real-inference-*/
 /.postman/
 /postman/
 
@@ -42,4 +43,11 @@ TestDataset.tar
 
 *.pth
 *.keras
+*.h5
+*.hdf5
+*.onnx
+*.pt
 backend/NSFW-Detection/src/models/
+
+# All local-only project data, credentials, datasets, and working instructions
+/local/
