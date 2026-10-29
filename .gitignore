@@ -40,6 +40,8 @@ TestDataset.tar
 # Local requirements and internal project documents
 /SRS.docx
 /SRS_extracted.txt
+node_modules/
+
 
 *.pth
 *.keras
