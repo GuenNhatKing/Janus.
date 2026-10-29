@@ -6,7 +6,7 @@ Check the selected interpreter and import:
 
 ```powershell
 Set-Location E:\PBL6\backend
-.\.venv\Scripts\python.exe -c "import app.main; print('import ok')"
+uv run python -c "import app.main; print('import ok')"
 ```
 
 Then inspect `.env` names, the upload directory, and the server stderr. Do not
@@ -15,8 +15,8 @@ print secret values.
 ## Database connection failure
 
 ```powershell
-.\.venv\Scripts\python.exe scripts\check_db.py
-.\.venv\Scripts\alembic.exe current
+uv run python scripts\check_db.py
+uv run alembic current
 ```
 
 Check host, port, SSL mode, role permissions, and whether the Neon database is

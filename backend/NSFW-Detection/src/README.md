@@ -33,21 +33,20 @@ Dự án cung cấp hai giải pháp Deep Learning phát hiện và kiểm duy�
 
 ### 1.1. Yêu cầu hệ thống
 - **Hệ điều hành**: Linux (Ubuntu, Debian, Fedora, Arch) hoặc Windows.
-- **Python**: Khuyến nghị `Python 3.11.x` để tương thích với TensorFlow 2.20.0, Keras 3.13.2 và PyTorch trong cùng môi trường.
+- **Python**: Sử dụng `Python 3.12.x`, là phiên bản được khóa trong
+  `pyproject.toml` để tương thích với TensorFlow 2.20.0, Keras 3.13.2 và
+  PyTorch trong cùng môi trường.
 - **Phần cứng**: Hỗ trợ chạy trên cả CPU và GPU (NVIDIA GPU với CUDA hỗ trợ tăng tốc tối đa).
 - **Yêu cầu bổ sung**: Cài đặt sẵn `ffmpeg` trên hệ thống nếu cần cắt/xuất clip; giai đoạn lấy mẫu không cần `ffprobe`.
 - **Bộ dữ liệu video**: nằm ở `local/TestDataset-v2/` (gồm `Adult/` và `Normal/`) ở thư mục gốc repo — thư mục `local/` bị Git bỏ qua.
 
 ### 1.2. Khởi tạo môi trường ảo và cài đặt thư viện
-```bash
-# 1. Tạo và kích hoạt môi trường ảo
-python3 -m venv .venv
-source .venv/bin/activate      # Trên Linux/macOS
-# .venv\Scripts\activate       # Trên Windows
 
-# 2. Cài đặt các thư viện cơ sở (chạy từ thư mục gốc proj6/)
-python -m pip install --upgrade pip
-python -m pip install -r src/requirements.txt
+Chạy từ thư mục `backend\NSFW-Detection\src`:
+
+```powershell
+uv sync
+uv run python proposed\proposed_adult_video_detect.py --help
 ```
 
 ### Cài đặt GPU cho cả MobileNetV3 và ResNet-50 (Linux/WSL2 + NVIDIA)
@@ -55,15 +54,12 @@ python -m pip install -r src/requirements.txt
 Mặc định, chương trình chọn GPU nếu cả backend nhận diện được, nếu không sẽ dùng CPU. MobileNetV3 chạy qua TensorFlow; ResNet-50 chạy qua PyTorch. Vì vậy chỉ cài PyTorch CUDA là **chưa đủ**: TensorFlow cũng phải nhận diện GPU.
 
 ```bash
-# Chạy từ thư mục dự án proj6/
-python3.11 -m venv .venv
-source .venv/bin/activate
-python -m pip install --upgrade pip
-python -m pip install -r src/requirements-gpu.txt
+# Chạy từ thư mục backend\NSFW-Detection\src
+uv sync
 
 # TensorFlow 2.20 dùng CUDA 12.5/cuDNN 9.3; dùng PyTorch CUDA 12.4 (cuDNN 9.x).
-# --no-deps tránh để pip thay thế các gói NVIDIA dùng chung đã được cài cho TensorFlow.
-python -m pip install --no-deps torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+# --no-deps tránh để uv thay thế các gói NVIDIA dùng chung đã được cài cho TensorFlow.
+uv pip install --no-deps torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
 
 # Xác minh cả backend, GPU và khả năng nạp mô hình MobileNet thực tế
 cd src

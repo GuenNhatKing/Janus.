@@ -49,5 +49,6 @@ approve or reject it.
 
 ## Boundaries
 
-The backend has no frontend, cloud storage, external AI API, mail provider,
+The frontend is a separate Vite/React application under `frontend/`. The
+repository still has no cloud storage, external AI API, mail provider,
 distributed job queue, moderation lock, or full audit trail.

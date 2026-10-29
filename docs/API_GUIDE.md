@@ -4,10 +4,10 @@ Updated: 2026-10-28
 
 ## 1. Base URL and authentication
 
-Run the backend from `backend`:
+Run the backend from the repository root with `uv`:
 
 ```powershell
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+uv run --directory backend uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Use `http://127.0.0.1:8000` as the base URL. Swagger UI is at `/docs`,

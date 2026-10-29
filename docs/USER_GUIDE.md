@@ -15,14 +15,18 @@ Current roles are:
 - `admin`: moderator permissions plus user, label, video-status, and statistics
   management.
 
-There is no implemented frontend in this repository.
+The frontend is a Vite/React application under `frontend/`. It is runnable
+independently, but not every SRS workflow is implemented in the UI yet.
 
 ## 2. Requirements
 
 - Windows PowerShell is supported by the commands below.
 - Python 3.12 was used for the verified environment.
-- Backend dependencies: `backend\requirements.txt`.
-- Real AI dependencies: `backend\NSFW-Detection\src\requirements.txt`.
+- Backend dependencies: root `pyproject.toml` and `uv.lock`, managed by `uv`.
+- Frontend dependencies: `frontend\package.json` and
+  `frontend\package-lock.json`, managed by npm.
+- Real AI dependencies: `backend\NSFW-Detection\src\pyproject.toml` and its
+  `uv.lock`.
 - PostgreSQL Neon credentials supplied locally through `backend\.env`.
 - Real model files under `backend\NSFW-Detection\src\models\`.
 - A local MP4 such as `local\TestDataset-v2\Travel_4.mp4`.
@@ -35,9 +39,11 @@ The real AI run was verified with TensorFlow 2.20.0, Keras 3.13.2, PyTorch
 
 ```powershell
 Set-Location E:\PBL6
-py -3.12 -m venv backend\.venv
-backend\.venv\Scripts\python.exe -m pip install -r backend\requirements.txt
-backend\.venv\Scripts\python.exe -m pip install -r backend\NSFW-Detection\src\requirements.txt
+uv venv
+uv sync
+Set-Location frontend
+npm install
+Set-Location ..
 Copy-Item backend\.env.example backend\.env
 ```
 
@@ -71,9 +77,9 @@ Verify the database without printing the connection string:
 
 ```powershell
 Set-Location E:\PBL6\backend
-.\.venv\Scripts\python.exe scripts\check_db.py
-.\.venv\Scripts\alembic.exe current
-.\.venv\Scripts\alembic.exe upgrade head
+uv run python scripts\check_db.py
+uv run alembic current
+uv run alembic upgrade head
 ```
 
 `upgrade head` is an additive migration operation in this repository, but
@@ -86,7 +92,8 @@ Start the backend:
 $env:AI_ANALYSIS_MODE="required"
 $env:PROJ6_DEVICE="cpu"
 $env:PYTHONUTF8="1"
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+Set-Location E:\PBL6
+uv run --directory backend uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Check:
@@ -127,7 +134,8 @@ real AI.
   token is returned for local testing.
 - Upload storage is local, not object storage.
 - Moderation has no claim/lock workflow or complete audit log.
-- A frontend is not implemented.
+- The frontend is runnable from `frontend/`, although it does not yet cover
+  every SRS workflow.
 
 ## 7. Data safety
 

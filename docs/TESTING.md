@@ -8,8 +8,8 @@ verification workflow.
 
 ```powershell
 Set-Location E:\PBL6\backend
-.\.venv\Scripts\python.exe scripts\check_db.py
-.\.venv\Scripts\alembic.exe current
+uv run python scripts\check_db.py
+uv run alembic current
 ```
 
 Start the backend with real inference:
@@ -18,7 +18,7 @@ Start the backend with real inference:
 $env:AI_ANALYSIS_MODE="required"
 $env:PROJ6_DEVICE="cpu"
 $env:PYTHONUTF8="1"
-.\.venv\Scripts\python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 ## Newman collections
@@ -43,7 +43,7 @@ roles to force a pass.
 ```powershell
 $env:PROJ6_DEVICE="cpu"
 $env:PYTHONUTF8="1"
-.\.venv\Scripts\python.exe NSFW-Detection\src\proposed\proposed_adult_video_detect.py `
+uv run --project NSFW-Detection\src python NSFW-Detection\src\proposed\proposed_adult_video_detect.py `
   --video ..\local\TestDataset-v2\Travel_4.mp4 `
   --out_dir ..\local-tests\ai-real-inference-20261028
 ```

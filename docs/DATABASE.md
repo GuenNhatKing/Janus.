@@ -11,8 +11,8 @@ Verify without exposing credentials:
 ```powershell
 Set-Location E:\PBL6\backend
 $env:PYTHONPATH="."
-.\.venv\Scripts\python.exe scripts\check_db.py
-.\.venv\Scripts\alembic.exe current
+uv run python scripts\check_db.py
+uv run alembic current
 ```
 
 The verified Neon database is `neondb`; the current revision is
@@ -37,8 +37,8 @@ Important relationships:
 ## Migration safety
 
 ```powershell
-.\.venv\Scripts\alembic.exe current
-.\.venv\Scripts\alembic.exe upgrade head
+uv run alembic current
+uv run alembic upgrade head
 ```
 
 Do not use database reset, drop, truncate, bulk deletion, or destructive
