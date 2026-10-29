@@ -421,7 +421,8 @@ def test_ai_analysis_returns_mock_result_and_enforces_video_ownership(client, re
 
     assert owner_result.status_code == 200
     assert owner_result.json()["job_status"] == "succeeded"
-    assert owner_result.json()["transcript"] == "Mock transcript for development testing."
+    # Khi NSFW-Detection chưa sẵn sàng, transcript thêm dòng lý do trước kết quả mock.
+    assert "Mock transcript for development testing." in owner_result.json()["transcript"]
     assert owner_result.json()["labels"] == [{"name": "Safe", "confidence": 0.95, "level": "HIGH"}]
     assert other_result.status_code == 404
     assert missing_token.status_code == 401

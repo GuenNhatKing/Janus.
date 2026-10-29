@@ -1,0 +1,20 @@
+# GPU environment for Linux x86_64 / WSL2 + NVIDIA.
+# The checked-in MobileNet model is saved by Keras 3.13.2; TF 2.15/Keras 2 cannot load it reliably.
+# TensorFlow 2.20 GPU runtime uses CUDA 12.5 and cuDNN 9.3 from the [and-cuda] extra.
+# Install the PyTorch CUDA 12.4 wheel with --no-deps as documented in README.md to avoid
+# pip replacing TensorFlow's shared NVIDIA runtime packages; verify both frameworks with check_gpu.py.
+# Only libraries imported by the code in src/ are kept: numpy, opencv-python, TensorFlow/Keras, PyTorch.
+# pandas, scikit-image, scipy and tqdm are unused by the source tree and were dropped.
+# filelock -> typing-extensions are torch dependencies and must be listed manually because torch is
+# installed with --no-deps in the step below (see README.md).
+numpy>=1.26,<2.1
+opencv-python>=4.8,<5.0
+tensorflow[and-cuda]==2.20.0; platform_system == "Linux" and platform_machine == "x86_64"
+keras==3.13.2; platform_system == "Linux" and platform_machine == "x86_64"
+filelock>=3.12
+fsspec>=2023.1
+jinja2>=3.1
+networkx>=3.0
+sympy>=1.12
+triton==3.2.0; platform_system == "Linux" and platform_machine == "x86_64"
+typing-extensions>=4.8

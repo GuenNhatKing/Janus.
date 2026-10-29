@@ -41,3 +41,8 @@ TestDataset.tar
 /SRS_extracted.txt
 node_modules/
 
+
+*.pth
+*.keras
+backend/NSFW-Detection/src/models/
+

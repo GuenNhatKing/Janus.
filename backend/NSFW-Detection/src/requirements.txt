@@ -1,0 +1,9 @@
+# Python 3.11+; MobileNet model file was saved with Keras 3.13.2.
+# TensorFlow 2.16+ uses Keras 3; TF 2.20 is pinned to keep model loading reproducible.
+# Only libraries imported by the code in src/ are kept:
+# numpy + opencv-python (sampling/preprocessing), TensorFlow/Keras (MobileNetV3), PyTorch (ResNet-50).
+numpy>=1.26,<2.1
+opencv-python>=4.8,<5.0
+tensorflow==2.20.0
+keras==3.13.2
+torch>=2.6,<2.7

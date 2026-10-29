@@ -6,24 +6,41 @@ from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.config import get_settings
 from app.db import get_db
-from app.models import User, UserRole
+from app.models import RevokedToken, User, UserRole
+from app.security import decode_access_token
 
 
 bearer = HTTPBearer(auto_error=False)
 
 
-def current_user(
+def access_payload(
     credentials: Annotated[HTTPAuthorizationCredentials | None, Depends(bearer)],
     db: Annotated[Session, Depends(get_db)],
-) -> User:
+) -> dict:
+    """Giải mã access token và kiểm tra token đã bị đăng xuất hay chưa."""
     if credentials is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Vui lòng đăng nhập")
     try:
-        payload = jwt.decode(credentials.credentials, get_settings().secret_key, algorithms=["HS256"])
-        user_id = UUID(payload["sub"])
-    except (jwt.PyJWTError, KeyError, ValueError) as exc:
+        payload = decode_access_token(credentials.credentials)
+    except (jwt.PyJWTError, KeyError, ValueError, TypeError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token không hợp lệ") from exc
+    jti = payload.get("jti")
+    if jti and db.get(RevokedToken, jti) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Phiên đăng nhập đã kết thúc, vui lòng đăng nhập lại",
+        )
+    return payload
+
+
+def current_user(
+    payload: Annotated[dict, Depends(access_payload)],
+    db: Annotated[Session, Depends(get_db)],
+) -> User:
+    try:
+        user_id = UUID(payload.get("sub", ""))
+    except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Token không hợp lệ") from exc
     user = db.get(User, user_id)
     if user is None or not user.is_active:
