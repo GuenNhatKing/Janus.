@@ -18,14 +18,15 @@ import tempfile
 from pathlib import Path
 
 from app.ai.base import AnalysisReport, Detection, DetectorUnavailableError
-from app.config import get_settings
+from app.core.config import get_settings
 
 logger = logging.getLogger(__name__)
 
-REPO_ROOT = Path(__file__).resolve().parents[3]
+# src/app/ai/nsfw.py -> src/app/ai -> src/app -> src -> backend
+REPO_ROOT = Path(__file__).resolve().parents[4]
 # Thư mục chứa code backend — đường dẫn tương đối trong NSFW_PIPELINE_DIR được
 # giải phóng dựa trên thư mục này.
-BACKEND_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = Path(__file__).resolve().parents[3]
 PIPELINE_SCRIPT = Path("proposed") / "proposed_adult_video_detect.py"
 FINAL_DECISION_JSON = "08_final_decision.json"
 REQUIRED_MODULES = ("tensorflow", "torch", "cv2", "numpy")

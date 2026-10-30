@@ -2,7 +2,7 @@
 
 ## Real pipeline
 
-The backend adapter in `backend/app/ai/nsfw.py` launches
+The backend adapter in `backend/src/app/ai/nsfw.py` launches
 `proposed/proposed_adult_video_detect.py` as a subprocess. It requires:
 
 - MobileNetV3 Keras model:

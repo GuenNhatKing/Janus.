@@ -18,7 +18,7 @@ from sqlalchemy.orm import sessionmaker
 from app.db.session import Base, get_db
 from app.main import app
 from app.models import AIJob, User, UserRole, Video, VideoStatus
-from app.security import hash_password
+from app.core.security import hash_password
 
 engine = create_engine(
     f"sqlite:///{TEST_DB_PATH.as_posix()}",

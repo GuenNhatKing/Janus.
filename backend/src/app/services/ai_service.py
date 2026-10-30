@@ -1,14 +1,17 @@
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from uuid import UUID, uuid4
+from uuid import UUID
 
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
+from app.ai.base import SAFE_LABEL, AnalysisReport, DetectorUnavailableError
+from app.ai.pipeline import analyse_video
 from app.core.config import get_settings
+from app.core.security import hash_opaque_token, new_opaque_token
 from app.db.session import SessionLocal
-from app.models import AIJob, JobStatus, Label, Video, VideoLabel, VideoStatus
+from app.models import AIJob, JobStatus, Label, User, Video, VideoLabel, VideoStatus
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +46,65 @@ def confidence_level(score: float) -> str:
     return "HIGH"
 
 
-def run_mock_analysis(video_id: UUID) -> None:
+def _upsert_label(db: Session, name: str) -> Label:
+    label = db.scalar(select(Label).where(Label.name == name))
+    if label is None:
+        label = Label(name=name)
+        db.add(label)
+        db.flush()
+    return label
+
+
+def _apply_mock_result(db: Session, job: AIJob, video: Video, note: str | None = None) -> None:
+    """Kết quả AI mô phỏng: transcript dev + nhãn Safe 0.95 và publish video."""
+    job.transcript = f"{note}\n{MOCK_TRANSCRIPT}" if note else MOCK_TRANSCRIPT
+    safe_label = _upsert_label(db, SAFE_LABEL)
+    db.add(
+        VideoLabel(
+            video_id=video.id,
+            label_id=safe_label.id,
+            confidence=0.95,
+            level=confidence_level(0.95),
+        )
+    )
+    job.status = JobStatus.succeeded
+    job.completed_at = datetime.now(timezone.utc)
+    video.status = VideoStatus.published
+    db.commit()
+
+
+def _apply_analysis_report(db: Session, job: AIJob, video: Video, report: AnalysisReport) -> None:
+    """Lưu kết quả từ pipeline NSFW-Detection vào job, nhãn và trạng thái video."""
+    job.transcript = report.transcript
+    for detection in report.detections:
+        db.add(
+            VideoLabel(
+                video_id=video.id,
+                label_id=_upsert_label(db, detection.label).id,
+                confidence=detection.confidence,
+                level=confidence_level(detection.confidence),
+            )
+        )
+    if report.is_safe:
+        db.add(
+            VideoLabel(
+                video_id=video.id,
+                label_id=_upsert_label(db, SAFE_LABEL).id,
+                confidence=report.normal_confidence,
+                level=confidence_level(report.normal_confidence),
+            )
+        )
+        video.status = VideoStatus.published
+    else:
+        # SRS 2.2.9: video có nhãn rủi ro chuyển vào hàng đợi kiểm duyệt.
+        video.status = VideoStatus.pending_review
+    job.status = JobStatus.succeeded
+    job.completed_at = datetime.now(timezone.utc)
+    db.commit()
+
+
+def _run_job(video_id: UUID, handler) -> None:
+    """Vòng đời chung của một job AI: running -> handler -> succeeded/failed."""
     db = SessionLocal()
     job: AIJob | None = None
     video: Video | None = None
@@ -138,15 +199,9 @@ def issue_refresh_token(db: Session, user: User) -> str:
     return raw
 
 
-def revoke_refresh_token(
-    db: Session, raw_token: str, user_id: UUID | None = None
-) -> bool:
+def revoke_refresh_token(db: Session, raw_token: str, user_id: UUID | None = None) -> bool:
     """Thu hồi một refresh token; trả về True nếu tìm thấy và còn hiệu lực."""
-    row = db.scalar(
-        select(RefreshToken).where(
-            RefreshToken.token_hash == hash_opaque_token(raw_token)
-        )
-    )
+    row = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == hash_opaque_token(raw_token)))
     if row is None or row.revoked_at is not None:
         return False
     if user_id is not None and row.user_id != user_id:
@@ -158,9 +213,7 @@ def revoke_refresh_token(
 def revoke_all_refresh_tokens(db: Session, user_id: UUID) -> None:
     now = datetime.now(timezone.utc)
     rows = db.scalars(
-        select(RefreshToken).where(
-            RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None)
-        )
+        select(RefreshToken).where(RefreshToken.user_id == user_id, RefreshToken.revoked_at.is_(None))
     )
     for row in rows:
         row.revoked_at = now
@@ -168,6 +221,4 @@ def revoke_all_refresh_tokens(db: Session, user_id: UUID) -> None:
 
 def purge_expired_revoked_tokens(db: Session) -> None:
     """Dọn access token đã hết hạn khỏi bảng thu hồi."""
-    db.execute(
-        delete(RevokedToken).where(RevokedToken.expires_at < datetime.now(timezone.utc))
-    )
+    db.execute(delete(RevokedToken).where(RevokedToken.expires_at < datetime.now(timezone.utc)))

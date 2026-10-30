@@ -23,5 +23,6 @@ npm run preview
 ```
 
 The frontend package manifest and lockfile are intentionally scoped to this
-directory. Python dependencies are managed by the root `pyproject.toml`,
-`uv.lock`, and `uv`.
+directory. Python dependencies are managed by `backend/pyproject.toml`,
+`backend/uv.lock` and `uv` — run `cd backend; uv sync` once before starting the
+backend.

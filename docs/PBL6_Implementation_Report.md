@@ -326,12 +326,11 @@ tham khảo:
 
 ```powershell
 cd E:\PBL6\backend
-.\.venv\Scripts\Activate.ps1
-alembic revision --autogenerate -m "describe_schema_change"
-alembic upgrade head
-alembic current
-alembic history
-pytest -q
+uv run alembic revision --autogenerate -m "describe_schema_change"
+uv run alembic upgrade head
+uv run alembic current
+uv run alembic history
+uv run pytest -q
 ```
 
 Các lệnh trên là quy trình được tài liệu hóa; trong báo cáo này chỉ `current`,
