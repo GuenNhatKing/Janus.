@@ -2,7 +2,7 @@
 
 import pytest
 
-from app import services
+from app.services import ai_service as services
 from app.ai import nsfw
 from app.ai.base import (
     SAFE_LABEL,
@@ -13,10 +13,10 @@ from app.ai.base import (
 )
 from app.ai.placeholders import DETECTORS
 from app.ai.pipeline import analyse_video
-from app.config import get_settings
-from app.db import SessionLocal
+from app.core.config import get_settings
+from app.db.session import SessionLocal
 from app.models import AIJob, JobStatus, User, Video, VideoStatus
-from app.security import hash_password
+from app.core.security import hash_password
 
 
 def test_placeholder_detectors_raise_and_model_dirs_exist():

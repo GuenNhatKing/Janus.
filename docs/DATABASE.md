@@ -10,7 +10,6 @@ Verify without exposing credentials:
 
 ```powershell
 Set-Location E:\PBL6\backend
-$env:PYTHONPATH="."
 uv run python scripts\check_db.py
 uv run alembic current
 ```
