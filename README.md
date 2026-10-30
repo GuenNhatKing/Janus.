@@ -265,7 +265,73 @@ uv sync
 dependencies into a separate `backend\.venv`; run backend commands through
 `uv run` from the repository root.
 
-Install frontend dependencies separately:
+## Cấu trúc thư mục
+
+```text
+.
+├── backend/            # FastAPI, layout src/
+│   ├── src/app/
+│   │   ├── api/v1/     # router + endpoints theo tài nguyên
+│   │   ├── core/       # config, security
+│   │   ├── db/         # session, engine, Base
+│   │   ├── models/     # entity SQLAlchemy
+│   │   ├── schemas/    # Pydantic request/response
+│   │   ├── services/   # nghiệp vụ
+│   │   ├── dependencies.py, exceptions.py, main.py
+│   ├── tests/          # pytest
+│   ├── alembic/        # migration
+│   └── pyproject.toml  # pytest pythonpath = src
+├── frontend/           # Vite + React
+│   └── src/
+│       ├── app/        # App, routes, guards, layout
+│       ├── pages/      # trang được định tuyến
+│       ├── features/   # auth, videos, moderation (api + hooks + components)
+│       ├── shared/     # api client, component, lib dùng chung
+│       └── styles/     # CSS theo khu vực
+├── docs/               # tài liệu, báo cáo dự án
+├── docker/ + docker-compose.yml
+└── local/, local-tests/   # dữ liệu và log cục bộ (không commit)
+```
+
+## Chạy frontend và kết nối backend
+
+Backend (cửa sổ 1):
+
+```powershell
+cd E:\PBL6\backend
+.\.venv\Scripts\Activate.ps1
+uvicorn app.main:app --reload --app-dir src   # http://127.0.0.1:8000
+```
+
+Frontend (cửa sổ 2):
+
+```powershell
+cd E:\PBL6\frontend
+npm install
+npm run dev                                   # http://localhost:5173
+```
+
+Cách hai bên nối với nhau:
+
+- Chế độ dev: Vite proxy mọi request `/api` sang `http://127.0.0.1:8000`, nên
+  trình duyệt gọi cùng origin và không cần CORS. Đổi đích bằng biến
+  `VITE_API_PROXY_TARGET`.
+- Chế độ production: đặt `VITE_API_BASE_URL` (frontend) trỏ tới origin backend
+  và khai báo origin frontend trong `CORS_ORIGINS` (backend, mặc định
+  `http://localhost:5173,http://127.0.0.1:5173`).
+- Luồng đã kết nối: đăng ký/đăng nhập lấy JWT → `POST /api/v1/videos` tải video
+  → poll `GET /api/v1/videos/{id}/ai` tới khi job xong → feed phát video qua
+  `GET /api/v1/videos/{id}/stream` → báo cáo đưa video vào hàng đợi kiểm duyệt.
+
+## Thiết lập PostgreSQL trên Windows 10/11
+
+Phần này mô tả quy trình từ máy chưa có PostgreSQL đến khi Backend truy vấn
+được database. Các lệnh dùng PowerShell và không yêu cầu gửi mật khẩu thật
+trong cuộc trò chuyện.
+
+### 1. Kiểm tra PostgreSQL
+
+Mở PowerShell mới và kiểm tra client, service, host và port:
 
 ```powershell
 Set-Location frontend
@@ -291,7 +357,67 @@ Expected output includes `database=neondb` and `user=neondb_owner`.
 
 ### 3. Configure environment variables
 
-From the `backend` directory:
+Sau khi cài, kiểm tra service:
+
+```powershell
+Get-Service -Name "postgresql*" | Format-Table Name,Status,StartType
+Start-Service -Name "postgresql-x64-16" # thay tên bằng kết quả thực tế
+```
+
+Nếu service đã chạy, không cần gọi `Start-Service`. Host mặc định là
+`localhost`, port là `5432`, còn database/role sẽ được tạo ở bước tiếp theo.
+Có thể dùng `psql` hoặc pgAdmin để thực hiện các câu lệnh SQL.
+
+### 2. Tạo database và role ứng dụng
+
+Đăng nhập bằng role quản trị cục bộ. Thay `postgres` bằng role quản trị của
+bạn nếu đã chọn tên khác:
+
+```powershell
+psql -h localhost -p 5432 -U postgres -d postgres
+```
+
+Trong cửa sổ `psql`, thay các giá trị mẫu bằng mật khẩu riêng của bạn. Không
+đưa mật khẩu thật vào README, script hoặc Git:
+
+```sql
+CREATE ROLE pbl6_app WITH LOGIN PASSWORD 'CHANGE_ME_TO_A_PRIVATE_PASSWORD';
+CREATE DATABASE pbl6 OWNER pbl6_app;
+\c pbl6
+GRANT CONNECT ON DATABASE pbl6 TO pbl6_app;
+GRANT USAGE, CREATE ON SCHEMA public TO pbl6_app;
+\du pbl6_app
+\l pbl6
+\q
+```
+
+Role `pbl6_app` chỉ phục vụ Backend; không dùng role superuser `postgres` cho
+ứng dụng trong môi trường thông thường. Nếu database hoặc role đã tồn tại,
+không chạy lại lệnh tạo một cách mù quáng; kiểm tra trước:
+
+```powershell
+psql -h localhost -p 5432 -U postgres -d postgres -c "\du"
+psql -h localhost -p 5432 -U postgres -d postgres -c "\l"
+```
+
+Kiểm tra quyền bằng tài khoản ứng dụng:
+
+```powershell
+psql -h localhost -p 5432 -U pbl6_app -d pbl6 -c "SELECT current_user, current_database(), version();"
+```
+
+Backend cũng có thể kiểm tra kết nối mà không in mật khẩu:
+
+```powershell
+cd E:\PBL6\backend
+.\.venv\Scripts\Activate.ps1
+$env:PYTHONPATH = "src"
+python -m scripts.check_db
+```
+
+### 3. Cấu hình `.env`
+
+Từ thư mục `E:\PBL6\backend`:
 
 ```powershell
 Copy-Item .env.example .env
@@ -353,7 +479,19 @@ Set-Location frontend
 npm run dev
 ```
 
-Verify readiness from another terminal:
+### 6. Kiểm tra end-to-end và chạy Backend
+
+Thực hiện theo thứ tự:
+
+```powershell
+Get-Service -Name "postgresql*" | Where-Object Status -eq "Running"
+Test-NetConnection localhost -Port 5432
+psql -h localhost -p 5432 -U pbl6_app -d pbl6 -c "SELECT 1;"
+alembic current
+uvicorn app.main:app --reload --app-dir src
+```
+
+Trong PowerShell khác:
 
 ```powershell
 Invoke-RestMethod http://127.0.0.1:8000/health
@@ -460,9 +598,20 @@ The main known limitations are:
 - Schema changes go through reviewed Alembic migrations (currently
   `0002_session_appeals`).
 
-The authoritative requirement document is `local/SRS.docx`. It is not
-tracked in Git. The implementation report and API guide describe the current
-gap between that SRS and the implemented MVP.
+- `POST /api/v1/auth/register`
+- `POST /api/v1/auth/login`
+- `GET /api/v1/profile`
+- `POST /api/v1/videos`
+- `GET /api/v1/videos`
+- `GET /api/v1/feed`
+- `GET /api/v1/videos/{video_id}/stream`
+- `GET /api/v1/videos/{video_id}/ai`
+- `DELETE /api/v1/videos/{video_id}`
+- `POST /api/v1/videos/{video_id}/reports`
+- `GET /api/v1/moderation/queue`
+- `POST /api/v1/moderation/videos/{video_id}/decision`
+- `GET /api/v1/moderation/reports`
+- `POST /api/v1/moderation/reports/{report_id}/decision`
 
 ## Development workflow
 

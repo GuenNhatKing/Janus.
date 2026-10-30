@@ -14,15 +14,10 @@ Frontend hay kết nối trực tiếp đến PostgreSQL.
 - Token hết hạn theo `ACCESS_TOKEN_EXPIRE_MINUTES`, mặc định trong code là 30 phút.
 - Role hợp lệ: `user`, `moderator`, `admin`.
 - Video hiện chỉ nhận MP4, tối đa 50 MiB, lưu local trong `UPLOAD_DIR`.
-- AI: `run_video_analysis` gọi pipeline NSFW-Detection (Adult) qua subprocess;
-  nếu môi trường AI chưa sẵn sàng thì job ghi lý do và dùng kết quả mock.
-  Không gọi Cloud Storage hoặc API AI bên ngoài.
-- 37 operation hoạt động (không còn route `501`): 19 endpoint cũ và 18 endpoint
-  triển khai mới — logout/refresh/password reset, cập nhật profile, streaming,
-  tìm kiếm theo nhãn, xác nhận/sửa nhãn, appeal, quản lý nhãn/video và thống kê
-  (chi tiết mục 3.20).
-- Refresh token và token đặt lại mật khẩu chỉ lưu dạng băm SHA-256; access
-  token mang `jti` nên đăng xuất thu hồi được ngay.
+- AI hiện là `run_mock_analysis`; không gọi Cloud Storage hoặc API AI thật.
+- Không có endpoint logout, refresh token hoặc password reset. Admin
+  user-management và endpoint phát video (`GET /api/v1/videos/{video_id}/stream`)
+  đã tồn tại, mô tả lần lượt ở mục 3.15–3.19 và 3.20.
 
 ### Trạng thái xác minh
 
@@ -407,12 +402,15 @@ Authorization: Bearer <access_token>
     "caption": null,
     "size_bytes": 2609079,
     "status": "published",
-    "created_at": "2026-10-25T15:00:00Z"
+    "created_at": "2026-10-25T15:00:00Z",
+    "owner_name": "Traveler"
   }
 ]
 ```
 
 HTTP `200`; có thể là `[]`.
+
+- `owner_name`: tên hiển thị của chủ video (dùng cho feed); nullable.
 
 **F. Lỗi thường gặp**: `401` khi thiếu/sai JWT.
 
@@ -776,7 +774,9 @@ Authorization: Bearer <moderator_or_admin_token>
 
 **D. Request body**: Không có.
 
-**E. Response**: HTTP `200`, mảng `ReportResponse`; có thể là `[]`.
+**E. Response**: HTTP `200`, mảng `ReportResponse` (`id`, `video_id`,
+`video_caption`, `reason`, `status`); có thể là `[]`. `video_caption` là mô tả
+hoặc tên tệp của video bị báo cáo để moderator nhận ra video.
 
 **F. Lỗi thường gặp**
 
@@ -960,67 +960,38 @@ curl -X PATCH http://127.0.0.1:8000/api/v1/admin/users/<user_id>/role ^
   -d "{\"role\":\"moderator\"}"
 ```
 
-### 3.20 Endpoint triển khai mới (phiên đăng nhập, nhãn, appeal, admin)
+### 3.20 Phát video (stream)
 
-Nhóm endpoint dưới đây từng là placeholder và nay **đã triển khai đầy đủ**;
-không còn route nào trả `501`. Quy tắc chung: thiếu token trả `401`, sai vai
-trò trả `403`, sai kiểu UUID/enum trả `422`.
+**Thông tin chung**
 
-| # | Method | Path | Auth | Chức năng (SRS) |
-|---:|---|---|---|---|
-| 1 | POST | `/api/v1/auth/logout` | JWT | Đăng xuất / revoke token (UC001–UC002) |
-| 2 | POST | `/api/v1/auth/refresh` | Không | Làm mới access token (UC002) |
-| 3 | POST | `/api/v1/auth/password/forgot` | Không | Yêu cầu đặt lại mật khẩu (UC002) |
-| 4 | POST | `/api/v1/auth/password/reset` | Không | Đặt lại mật khẩu (UC002) |
-| 5 | PATCH | `/api/v1/profile` | JWT | Cập nhật hồ sơ cá nhân (UC003) |
-| 6 | GET | `/api/v1/videos/{video_id}/stream` | JWT | Streaming/phát video (UC004) |
-| 7 | GET | `/api/v1/videos/search` | JWT | Lọc và tìm video theo nhãn (UC009) |
-| 8 | POST | `/api/v1/videos/{video_id}/labels/confirm` | JWT | Xác nhận/chỉnh sửa nhãn (UC007) |
-| 9 | PATCH | `/api/v1/videos/{video_id}/labels` | JWT mod/admin | Chỉnh sửa nhãn khi kiểm duyệt (UC015) |
-| 10 | POST | `/api/v1/videos/{video_id}/appeals` | JWT | Gửi yêu cầu xem xét lại (UC011) |
-| 11 | GET | `/api/v1/moderation/appeals` | JWT mod/admin | Danh sách appeal (UC017) |
-| 12 | POST | `/api/v1/moderation/appeals/{appeal_id}/decision` | JWT mod/admin | Xử lý appeal (UC017) |
-| 13 | PATCH | `/api/v1/admin/videos/{video_id}/status` | JWT admin | Quản lý video (2.2.12) |
-| 14 | GET | `/api/v1/admin/labels` | JWT admin | Liệt kê nhãn nội dung (2.2.13) |
-| 15 | POST | `/api/v1/admin/labels` | JWT admin | Tạo nhãn mới (2.2.13) |
-| 16 | PATCH | `/api/v1/admin/labels/{label_id}` | JWT admin | Cập nhật/vô hiệu hóa nhãn (2.2.13) |
-| 17 | GET | `/api/v1/admin/moderators/{moderator_id}/stats` | JWT admin | Thống kê hiệu suất Moderator (UC019) |
-| 18 | GET | `/api/v1/admin/stats` | JWT admin | Dashboard thống kê hệ thống (UC020) |
+- Method: `GET`
+- Path: `/api/v1/videos/{video_id}/stream`
+- Operation ID: `stream_video`
+- Full URL mẫu: `http://127.0.0.1:8000/api/v1/videos/<video_id>/stream`
+- Chức năng: trả tệp MP4 để trình duyệt phát trực tiếp (feed, hồ sơ, hàng đợi kiểm duyệt).
+- Module: Video Management
+- Authentication: Không bắt buộc; `Authorization` chỉ cần khi video chưa `published`.
+- Role/permission: video `published` cho mọi người; video chưa publish chỉ cho chủ video, `moderator`, `admin`.
+- Content-Type: `video/mp4`
+- Trạng thái xác minh: **Đã test** — Pytest `test_video_stream_serves_published_video_and_hides_pending_one`.
+
+**A/B. Path và query parameters**: path `video_id` (UUID). Không có query.
+
+**C. Headers**: tùy chọn `Authorization: Bearer <access_token>`.
+
+**D. Request body**: Không có.
+
+**E. Response**: HTTP `200` với body là tệp MP4 và header `Cache-Control: private, max-age=60`. Trình duyệt thường gửi `Range`; Starlette trả `206 Partial Content` cho phần được yêu cầu.
+
+**F. Lỗi thường gặp**
+
+- `404`: video không tồn tại, đã soft-delete, chưa `published` mà caller không có quyền, hoặc tệp không còn trong `UPLOAD_DIR`.
+
+**G. Ví dụ gọi API**
 
 ```bash
-curl -X PATCH http://127.0.0.1:8000/api/v1/profile ^
-  -H "Authorization: Bearer <access_token>" ^
-  -H "Content-Type: application/json" ^
-  -d "{\"display_name\":\"Tên mới\"}"
+curl -OJ http://127.0.0.1:8000/api/v1/videos/<video_id>/stream
 ```
-
-**Hợp đồng tóm tắt của nhóm endpoint mới**
-
-| Endpoint | Body / query | Response thành công | Lỗi điển hình |
-|---|---|---|---|
-| `POST /auth/logout` | `{refresh_token?}` | `204` — thu hồi `jti` của token hiện tại (và refresh token nếu gửi kèm) | `401` |
-| `POST /auth/refresh` | `{refresh_token}` | `200` `{access_token, refresh_token}` — refresh token xoay vòng | `401` khi token đã dùng, bị thu hồi hoặc hết hạn |
-| `POST /auth/password/forgot` | `{email}` | `202` `{detail, reset_token}` — `reset_token` chỉ trả về khi `environment != production` | `422` email sai định dạng |
-| `POST /auth/password/reset` | `{token, new_password}` | `204` — đổi mật khẩu và thu hồi toàn bộ refresh token | `400` token sai, hết hạn hoặc đã dùng |
-| `PATCH /profile` | `{display_name}` hoặc `{current_password, new_password}` | `200` user | `400` sai mật khẩu hiện tại; `422` thiếu trường |
-| `GET /videos/{video_id}/stream` | header `Range` (VD `bytes=0-3`) | `200`/`206`, `content-type: video/mp4`, `accept-ranges: bytes` | `404` không có quyền, video chưa đăng hoặc file mất |
-| `GET /videos/search` | `label`, `exclude_label`, `q`, `limit` (1–100, mặc định 50) | `200` danh sách video kèm `labels` và `owner_display_name` | `401`; `422` limit ngoài khoảng |
-| `POST /videos/{video_id}/labels/confirm` | `{labels:[{name, confidence}]}` | `200` danh sách nhãn sau ghi (multi-label) | `400` nhãn chưa tồn tại/trùng/vô hiệu; `404` không phải chủ video |
-| `PATCH /videos/{video_id}/labels` | như trên | `200` — thay thế toàn bộ nhãn của video | `403` với user thường |
-| `POST /videos/{video_id}/appeals` | `{reason}` (3–1000 ký tự) | `201` appeal `open` kèm `user_display_name` | `400` video chưa bị từ chối; `409` đã có appeal đang mở; `404` không phải chủ |
-| `GET /moderation/appeals` | `status=open\|approved\|rejected` (mặc định `open`) | `200` danh sách kèm tên người khiếu nại | `403` |
-| `POST /moderation/appeals/{appeal_id}/decision` | `{action: approve\|reject, reason?}` | `204` — `approve` đăng lại video, `reject` giữ nguyên | `409` đã xử lý; `404` sai id |
-| `PATCH /admin/videos/{video_id}/status` | `{status: pending_review\|published\|rejected\|deleted, reason?}` | `200` video (`deleted` = soft delete) | `404`; `422` sai enum (không nhận `processing`) |
-| `GET /admin/labels` | — | `200` danh sách kèm `video_count` | `403` |
-| `POST /admin/labels` | `{name}` | `201` nhãn mới | `409` trùng tên (không phân biệt hoa thường) |
-| `PATCH /admin/labels/{label_id}` | `{name?}`, `{is_active?}` | `200` nhãn sau cập nhật | `409` trùng tên; `422` thiếu trường; `404` |
-| `GET /admin/moderators/{moderator_id}/stats` | — | `200` `{videos_reviewed, reviews_approved, reviews_rejected, appeals_handled}` | `400` người dùng không phải moderator/admin; `404` |
-| `GET /admin/stats?days=1..365` | — | `200` dashboard UC020: video theo trạng thái, phân bố nhãn (kèm `ratio`), report/appeal/job theo trạng thái, khối lượng Moderator | `422` `days` ngoài khoảng; `403` |
-
-- Trạng thái xác minh: **Đã test** — 20 test pytest mới
-  (`test_auth_session.py`, `test_video_stream_search.py`,
-  `test_labels_appeals_admin.py`) và smoke test runtime đầy đủ trên Neon
-  (tạo nhãn → xác nhận nhãn → search → reject → appeal → approve → stats).
 
 ## 4. Luồng gọi API thực tế
 
@@ -1078,41 +1049,17 @@ curl -X PATCH http://127.0.0.1:8000/api/v1/profile ^
 | 17 | PATCH | `/api/v1/admin/users/{user_id}/status` | Admin Management | JWT + admin | Đã test |
 | 18 | GET | `/api/v1/admin/moderators` | Admin Management | JWT + admin | Đã test |
 | 19 | PATCH | `/api/v1/admin/users/{user_id}/role` | Admin Management | JWT + admin | Đã test |
-| 20 | POST | `/api/v1/auth/logout` | Auth | JWT | Đã test |
-| 21 | POST | `/api/v1/auth/refresh` | Auth | Không | Đã test |
-| 22 | POST | `/api/v1/auth/password/forgot` | Auth | Không | Đã test |
-| 23 | POST | `/api/v1/auth/password/reset` | Auth | Không | Đã test |
-| 24 | PATCH | `/api/v1/profile` | User Profile | JWT | Đã test |
-| 25 | GET | `/api/v1/videos/{video_id}/stream` | Video Playback | JWT | Đã test |
-| 26 | GET | `/api/v1/videos/search` | Video Search | JWT | Đã test |
-| 27 | POST | `/api/v1/videos/{video_id}/labels/confirm` | Labels | JWT + owner | Đã test |
-| 28 | PATCH | `/api/v1/videos/{video_id}/labels` | Labels | JWT + mod/admin | Đã test |
-| 29 | POST | `/api/v1/videos/{video_id}/appeals` | Appeal | JWT + owner | Đã test |
-| 30 | GET | `/api/v1/moderation/appeals` | Appeal | JWT + mod/admin | Đã test |
-| 31 | POST | `/api/v1/moderation/appeals/{appeal_id}/decision` | Appeal | JWT + mod/admin | Đã test |
-| 32 | PATCH | `/api/v1/admin/videos/{video_id}/status` | Admin Management | JWT + admin | Đã test |
-| 33 | GET | `/api/v1/admin/labels` | Label Management | JWT + admin | Đã test |
-| 34 | POST | `/api/v1/admin/labels` | Label Management | JWT + admin | Đã test |
-| 35 | PATCH | `/api/v1/admin/labels/{label_id}` | Label Management | JWT + admin | Đã test |
-| 36 | GET | `/api/v1/admin/moderators/{moderator_id}/stats` | Admin Analytics | JWT + admin | Đã test |
-| 37 | GET | `/api/v1/admin/stats` | Admin Analytics | JWT + admin | Đã test |
+| 20 | GET | `/api/v1/videos/{video_id}/stream` | Video Management | Không (JWT nếu chưa published) | Đã test |
 
 ## 6. Đối chiếu và giới hạn
 
-- OpenAPI runtime trả 37 operation hoạt động; không còn endpoint `501` nào.
-- Tất cả route vẫn được đăng ký trực tiếp trong `app/main.py`; chưa dùng
-  APIRouter cho từng module.
-- `GET /api/v1/videos/{video_id}/stream` phục vụ file local qua `FileResponse`
-  (hỗ trợ HTTP Range); `storage_path` không được trả ra trong `VideoResponse`.
-- Logout thu hồi `jti` của access token hiện tại; refresh token xoay vòng và bị
-  thu hồi khi dùng lại hoặc khi đổi mật khẩu. Chưa có kênh gửi mail nên
-  `reset_token` chỉ được trả về ngoài môi trường `production`.
-- Admin Management có list/detail/status/role user, quản lý nhãn, quản lý trạng
-  thái video và 2 endpoint thống kê (UC019/UC020).
-- Feed/report/queue chưa có pagination; chỉ `/videos/search` nhận `limit`.
-- AI result do pipeline NSFW-Detection (`app.ai.nsfw`) sinh ra khi môi trường
-  AI đã cài; nếu chưa, job ghi rõ lý do trong transcript và dùng kết quả mock.
-  Speech-to-text và các detector violence/sound/text vẫn là placeholder.
+- OpenAPI runtime sau thay đổi đã trả 19 path và 20 operation như bảng trên.
+- Không có router khác được đăng ký trong application hiện tại.
+- Không có query pagination, search hoặc filter trong các endpoint list.
+- File video chỉ lấy được qua endpoint stream ở mục 3.20; `storage_path` không
+  được trả ra trong `VideoResponse`.
+- Không có logout, token revocation, refresh token hoặc password recovery.
+- Không có Admin Management API dù enum `admin` và quyền moderation đã tồn tại.
 - Endpoint quyết định video moderation đã đối chiếu source/OpenAPI nhưng chưa có
   request Newman riêng; vì vậy được đánh dấu `Code/OpenAPI`, không đánh dấu
   `Đã test`.
