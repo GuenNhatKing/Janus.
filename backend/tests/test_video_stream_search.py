@@ -4,9 +4,9 @@ from uuid import UUID
 
 from sqlalchemy import select
 
-from app.db import SessionLocal
+from app.db.session import SessionLocal
 from app.models import Label, UserRole, Video, VideoLabel, VideoStatus
-from app.services import confidence_level
+from app.services.ai_service import confidence_level
 
 
 def ensure_label(name: str) -> None:

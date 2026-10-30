@@ -47,8 +47,8 @@ The system supports a moderation-oriented video workflow:
 8. Admins can manage user status and the roles supported by the current model.
 
 The AI entry point is `run_video_analysis` in
-[backend/app/services.py](backend/app/services.py), which calls
-`app.ai.pipeline.analyse_video`. The Adult detector shells out to
+[backend/src/app/services/ai_service.py](backend/src/app/services/ai_service.py),
+which calls `app.ai.pipeline.analyse_video`. The Adult detector shells out to
 `backend/NSFW-Detection/src/proposed/proposed_adult_video_detect.py` and reads its
 `08_final_decision.json` output; no external AI API or Cloud Storage is used.
 
@@ -122,7 +122,7 @@ The AI entry point is `run_video_analysis` in
 
 Detector placeholders (they raise `DetectorNotImplementedError` when called and
 are recorded in the job transcript as skipped) live in
-[backend/app/ai/placeholders.py](backend/app/ai/placeholders.py), with empty
+[backend/src/app/ai/placeholders.py](backend/src/app/ai/placeholders.py), with empty
 model directories under `backend/NSFW-Detection/src/models/{violence,sound,text}/`.
 
 ### Not implemented in the current repository
@@ -176,8 +176,9 @@ online Neon database. The running backend reads `DATABASE_URL` from
 | Automated tests | Pytest and FastAPI TestClient |
 | API collections | Postman/Newman local collections |
 
-Backend dependency ranges are maintained in the root
-[pyproject.toml](pyproject.toml) and resolved in `uv.lock`. AI dependencies
+Backend dependency ranges are maintained in
+[backend/pyproject.toml](backend/pyproject.toml) and resolved in
+`backend/uv.lock`; `uv sync` creates `backend/.venv`. AI dependencies
 are maintained in the separate
 [backend/NSFW-Detection/src/pyproject.toml](backend/NSFW-Detection/src/pyproject.toml)
 and its `uv.lock`, so the API environment stays small.
@@ -186,21 +187,21 @@ and its `uv.lock`, so the API environment stays small.
 
 ```text
 .
-├── backend/                      # Backend (FastAPI)
-│   ├── app/
-│   │   ├── config.py          # Settings and environment loading
-│   │   ├── db.py              # SQLAlchemy engine/session setup
+├── backend/                      # Backend (FastAPI) — uv project của Python
+│   ├── pyproject.toml         # [project] deps + dev group + cấu hình pytest
+│   ├── uv.lock                # Lockfile Python (uv sync)
+│   ├── .venv/                 # Môi trường ảo do uv tạo (bị Git bỏ qua)
+│   ├── src/app/               # Gói ứng dụng, cài editable nên `import app` chạy được
+│   │   ├── api/v1/            # router + endpoints theo tài nguyên
+│   │   ├── core/              # config.py (settings), security.py (JWT/scrypt)
+│   │   ├── db/                # session.py (engine, SessionLocal, Base)
+│   │   ├── models/            # entity SQLAlchemy và enum
+│   │   ├── schemas/           # Pydantic request/response
+│   │   ├── services/          # nghiệp vụ (ai_service, auth_service, ...)
+│   │   ├── ai/                # base.py, nsfw.py, pipeline.py, placeholders.py
 │   │   ├── dependencies.py    # JWT authentication and RBAC dependencies
-│   │   ├── main.py            # FastAPI application and route handlers
-│   │   ├── models.py          # SQLAlchemy models and enums
-│   │   ├── schemas.py         # Pydantic request/response schemas
-│   │   ├── security.py        # Password hashing and JWT creation
-│   │   ├── services.py        # Job lifecycle: NSFW pipeline + mock fallback
-│   │   └── ai/
-│   │       ├── base.py        # Detection/AnalysisReport contract
-│   │       ├── nsfw.py        # NSFW-Detection subprocess adapter
-│   │       ├── placeholders.py# Violence/sound/text detectors (not implemented)
-│   │       └── pipeline.py    # Runs every detector, records skipped ones
+│   │   ├── exceptions.py      # ServiceError và lỗi nghiệp vụ
+│   │   └── main.py            # FastAPI application and route handlers
 │   ├── NSFW-Detection/
 │   │   └── src/
 │   │       ├── proposed/      # Adult detection pipeline (4 stages)
@@ -219,13 +220,10 @@ and its `uv.lock`, so the API environment stays small.
 │   ├── neondb.txt             # Chuỗi kết nối Neon PostgreSQL
 │   └── TestDataset-v2/        # Bộ video test (Adult/, Normal/)
 ├── local-tests/               # Postman collections và module log (bị Git bỏ qua)
-├── API_ENDPOINTS_GUIDE.md     # Detailed endpoint integration guide
-├── PBL6_Implementation_Report.md
-├── AGENTS.md                  # Project instructions for contributors/agents
+├── API_ENDPOINTS_GUIDE.md     # Detailed endpoint integration guide (legacy)
+├── docs/                      # Tài liệu: API, database, testing, kiến trúc
 ├── README.md
-├── pyproject.toml             # Python runtime/dev dependencies managed by uv
-├── uv.lock                    # Reproducible Python dependency lockfile
-└── .python-version
+└── .gitignore
 ```
 
 `local/` is ignored as a whole, so `SRS.docx`, `neondb.txt` and
@@ -257,19 +255,23 @@ production databases for local development or tests.
 git clone https://github.com/Hrk9324/PBL6_AI_short_video_moderation.git
 Set-Location PBL6_AI_short_video_moderation
 
-uv venv
+cd backend
 uv sync
 ```
 
-`uv.lock` is the source of resolved Python versions. Do not install backend
-dependencies into a separate `backend\.venv`; run backend commands through
-`uv run` from the repository root.
+`uv` tự tạo `backend\.venv` và `backend\uv.lock` (nguồn phiên bản đã resolve).
+Không activates `.venv` bằng tay và không cài dependency vào một `backend\.venv`
+tách biệt: mọi lệnh backend đều chạy qua `uv run` từ thư mục `backend\` (hoặc từ
+gốc repo với `uv run --directory backend ...`).
 
 ## Cấu trúc thư mục
 
 ```text
 .
-├── backend/            # FastAPI, layout src/
+├── backend/            # Dự án uv của backend (FastAPI), layout src/
+│   ├── pyproject.toml  # [project] deps + dev group + pytest pythonpath = src
+│   ├── uv.lock         # Lockfile Python (uv sync)
+│   ├── .venv/          # Môi trường ảo do uv tạo (không commit)
 │   ├── src/app/
 │   │   ├── api/v1/     # router + endpoints theo tài nguyên
 │   │   ├── core/       # config, security
@@ -277,10 +279,11 @@ dependencies into a separate `backend\.venv`; run backend commands through
 │   │   ├── models/     # entity SQLAlchemy
 │   │   ├── schemas/    # Pydantic request/response
 │   │   ├── services/   # nghiệp vụ
+│   │   ├── ai/         # pipeline NSFW + detector placeholder
 │   │   ├── dependencies.py, exceptions.py, main.py
 │   ├── tests/          # pytest
 │   ├── alembic/        # migration
-│   └── pyproject.toml  # pytest pythonpath = src
+│   └── scripts/        # check_db.py kiểm tra kết nối DB
 ├── frontend/           # Vite + React
 │   └── src/
 │       ├── app/        # App, routes, guards, layout
@@ -289,7 +292,6 @@ dependencies into a separate `backend\.venv`; run backend commands through
 │       ├── shared/     # api client, component, lib dùng chung
 │       └── styles/     # CSS theo khu vực
 ├── docs/               # tài liệu, báo cáo dự án
-├── docker/ + docker-compose.yml
 └── local/, local-tests/   # dữ liệu và log cục bộ (không commit)
 ```
 
@@ -299,8 +301,8 @@ Backend (cửa sổ 1):
 
 ```powershell
 cd E:\PBL6\backend
-.\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --app-dir src   # http://127.0.0.1:8000
+uv sync                       # chỉ chạy lần đầu (hoặc khi đổi dependencies)
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000   # http://127.0.0.1:8000
 ```
 
 Frontend (cửa sổ 2):
@@ -323,23 +325,19 @@ Cách hai bên nối với nhau:
   → poll `GET /api/v1/videos/{id}/ai` tới khi job xong → feed phát video qua
   `GET /api/v1/videos/{id}/stream` → báo cáo đưa video vào hàng đợi kiểm duyệt.
 
-## Thiết lập PostgreSQL trên Windows 10/11
+## Thiết lập database
 
-Phần này mô tả quy trình từ máy chưa có PostgreSQL đến khi Backend truy vấn
-được database. Các lệnh dùng PowerShell và không yêu cầu gửi mật khẩu thật
-trong cuộc trò chuyện.
+Backend đọc `DATABASE_URL` từ `backend\.env`. Có hai lựa chọn:
 
-### 1. Kiểm tra PostgreSQL
+- **Neon PostgreSQL (mặc định)** — không cần cài gì thêm, chỉ cần chuỗi kết nối
+  trong `local/neondb.txt` → làm **bước 1** rồi nhảy tới **bước 4**.
+- **PostgreSQL cục bộ trên Windows 10/11** — cho máy không dùng Neon → làm đủ
+  **bước 2 đến bước 5**.
 
-Mở PowerShell mới và kiểm tra client, service, host và port:
+Các lệnh dùng PowerShell và không yêu cầu gửi mật khẩu thật trong cuộc trò
+chuyện.
 
-```powershell
-Set-Location frontend
-npm install
-Set-Location ..
-```
-
-### 2. Database: online Neon PostgreSQL
+### 1. Database: online Neon PostgreSQL
 
 The Docker Compose PostgreSQL service has been removed from this repository.
 The backend connects to the online Neon database described by
@@ -355,9 +353,10 @@ uv run python -m scripts.check_db
 
 Expected output includes `database=neondb` and `user=neondb_owner`.
 
-### 3. Configure environment variables
+### 2. Kiểm tra PostgreSQL cục bộ (bỏ qua nếu dùng Neon)
 
-Sau khi cài, kiểm tra service:
+Mở PowerShell mới, kiểm tra service/host/port; nếu service đã cài mà chưa chạy
+thì khởi động trước:
 
 ```powershell
 Get-Service -Name "postgresql*" | Format-Table Name,Status,StartType
@@ -365,10 +364,14 @@ Start-Service -Name "postgresql-x64-16" # thay tên bằng kết quả thực t�
 ```
 
 Nếu service đã chạy, không cần gọi `Start-Service`. Host mặc định là
-`localhost`, port là `5432`, còn database/role sẽ được tạo ở bước tiếp theo.
+`localhost`, port là `5432`, còn database/role sẽ được tạo ở bước 3.
 Có thể dùng `psql` hoặc pgAdmin để thực hiện các câu lệnh SQL.
 
-### 2. Tạo database và role ứng dụng
+```powershell
+Test-NetConnection localhost -Port 5432
+```
+
+### 3. Tạo database và role ứng dụng (bỏ qua nếu dùng Neon)
 
 Đăng nhập bằng role quản trị cục bộ. Thay `postgres` bằng role quản trị của
 bạn nếu đã chọn tên khác:
@@ -410,12 +413,10 @@ Backend cũng có thể kiểm tra kết nối mà không in mật khẩu:
 
 ```powershell
 cd E:\PBL6\backend
-.\.venv\Scripts\Activate.ps1
-$env:PYTHONPATH = "src"
-python -m scripts.check_db
+uv run python -m scripts.check_db
 ```
 
-### 3. Cấu hình `.env`
+### 4. Cấu hình `.env`
 
 Từ thư mục `E:\PBL6\backend`:
 
@@ -446,7 +447,7 @@ Use URL encoding for reserved characters in a connection URL password. Never
 commit `.env`, `local/neondb.txt` or share real credentials. The application reads
 settings from the backend working directory.
 
-### 4. Apply migrations
+### 5. Apply migrations
 
 ```powershell
 Set-Location backend
@@ -464,12 +465,17 @@ report `0002_session_appeals (head)`.
 Do not drop or reset a database to resolve a migration problem. Check the
 database URL, role permissions, schema, and current Alembic revision first.
 
-## Running the backend
-
-From the repository root:
+## Running the backendFrom the repository root:
 
 ```powershell
 uv run --directory backend uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+```
+
+hoặc từ thư mục `backend/` (kết quả giống nhau):
+
+```powershell
+cd backend
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Run the frontend in a second terminal:
@@ -479,7 +485,7 @@ Set-Location frontend
 npm run dev
 ```
 
-### 6. Kiểm tra end-to-end và chạy Backend
+### Kiểm tra end-to-end và chạy Backend
 
 Thực hiện theo thứ tự:
 
@@ -487,8 +493,8 @@ Thực hiện theo thứ tự:
 Get-Service -Name "postgresql*" | Where-Object Status -eq "Running"
 Test-NetConnection localhost -Port 5432
 psql -h localhost -p 5432 -U pbl6_app -d pbl6 -c "SELECT 1;"
-alembic current
-uvicorn app.main:app --reload --app-dir src
+uv run alembic current
+uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Trong PowerShell khác:
@@ -514,6 +520,19 @@ running backend and the independent AI smoke command documented in
 [docs/TESTING.md](docs/TESTING.md). Existing Pytest files are retained as
 repository history, but their results are not evidence for the current
 functional status.
+
+The retained suite still runs from `backend/`:
+
+```powershell
+cd backend
+uv run pytest
+```
+
+At the time of writing it reports **15 passed, 20 failed, 8 errors**: the
+failures are endpoints that the `src/` refactor has not re-registered yet
+(refresh/logout/password reset, `PATCH /profile`, label confirmation/editing,
+appeals, `/videos/search`, admin labels and statistics), and the 8 errors come
+from the local dataset `local/TestDataset-v2/` not being present.
 
 ### Newman
 
@@ -597,6 +616,11 @@ The main known limitations are:
   and locked-work reassignment behavior.
 - Schema changes go through reviewed Alembic migrations (currently
   `0002_session_appeals`).
+- The `src/` refactor has not re-registered every endpoint listed above:
+  the running app exposes 19 routes, so refresh/logout/password reset,
+  `PATCH /api/v1/profile`, label confirmation/editing, appeals,
+  `/api/v1/videos/search`, admin label management and statistics currently
+  answer 404 and their tests fail.
 
 - `POST /api/v1/auth/register`
 - `POST /api/v1/auth/login`

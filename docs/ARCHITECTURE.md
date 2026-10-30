@@ -28,14 +28,14 @@ NSFW-Detection proposed pipeline
 
 ## Important source locations
 
-- `backend/app/main.py`: route registration and request orchestration.
-- `backend/app/schemas.py`: Pydantic request/response contracts.
-- `backend/app/models.py`: SQLAlchemy models and enums.
-- `backend/app/dependencies.py`: JWT validation and role checks.
-- `backend/app/security.py`: password hashing, JWT, opaque token helpers.
-- `backend/app/services.py`: upload validation and AI job lifecycle.
-- `backend/app/ai/nsfw.py`: subprocess adapter and preflight checks.
-- `backend/app/ai/pipeline.py`: real NSFW detector plus placeholder detectors.
+- `backend/src/app/main.py`: route registration and request orchestration.
+- `backend/src/app/schemas/`: Pydantic request/response contracts.
+- `backend/src/app/models/`: SQLAlchemy models and enums.
+- `backend/src/app/dependencies.py`: JWT validation and role checks.
+- `backend/src/app/core/security.py`: password hashing, JWT, opaque token helpers.
+- `backend/src/app/services/ai_service.py`: upload validation and AI job lifecycle.
+- `backend/src/app/ai/nsfw.py`: subprocess adapter and preflight checks.
+- `backend/src/app/ai/pipeline.py`: real NSFW detector plus placeholder detectors.
 - `backend/NSFW-Detection/src/proposed/`: model loading and inference stages.
 - `backend/alembic/versions/`: schema migrations.
 

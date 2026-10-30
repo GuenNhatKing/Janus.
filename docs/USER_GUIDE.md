@@ -22,7 +22,8 @@ independently, but not every SRS workflow is implemented in the UI yet.
 
 - Windows PowerShell is supported by the commands below.
 - Python 3.12 was used for the verified environment.
-- Backend dependencies: root `pyproject.toml` and `uv.lock`, managed by `uv`.
+- Backend dependencies: `backend\pyproject.toml` and `backend\uv.lock`,
+  managed by `uv` (`cd backend; uv sync` creates `backend\.venv`).
 - Frontend dependencies: `frontend\package.json` and
   `frontend\package-lock.json`, managed by npm.
 - Real AI dependencies: `backend\NSFW-Detection\src\pyproject.toml` and its
@@ -38,12 +39,11 @@ The real AI run was verified with TensorFlow 2.20.0, Keras 3.13.2, PyTorch
 ## 3. First-time setup
 
 ```powershell
-Set-Location E:\PBL6
-uv venv
+Set-Location E:\PBL6\backend
 uv sync
-Set-Location frontend
+Set-Location E:\PBL6\frontend
 npm install
-Set-Location ..
+Set-Location E:\PBL6
 Copy-Item backend\.env.example backend\.env
 ```
 
@@ -92,8 +92,8 @@ Start the backend:
 $env:AI_ANALYSIS_MODE="required"
 $env:PROJ6_DEVICE="cpu"
 $env:PYTHONUTF8="1"
-Set-Location E:\PBL6
-uv run --directory backend uvicorn app.main:app --host 127.0.0.1 --port 8000
+Set-Location E:\PBL6\backend
+uv run uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 Check:

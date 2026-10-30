@@ -4,7 +4,7 @@ from uuid import UUID
 
 from sqlalchemy import select
 
-from app.db import SessionLocal
+from app.db.session import SessionLocal
 from app.models import Label, UserRole, VideoStatus
 
 
@@ -22,7 +22,7 @@ def ensure_label(name: str, active: bool = True) -> UUID:
 
 def attach_label(video_id: UUID, name: str, confidence: float = 0.9) -> None:
     from app.models import VideoLabel
-    from app.services import confidence_level
+    from app.services.ai_service import confidence_level
 
     ensure_label(name)
     with SessionLocal() as db:
