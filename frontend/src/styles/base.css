@@ -1,0 +1,170 @@
+@import 'tailwindcss';
+
+/* ===== Design tokens (dark, TikTok-inspired) ===== */
+:root {
+  --bg: #000000;
+  --bg-soft: #0e0e0e;
+  --surface: #171717;
+  --surface-2: #1f1f1f;
+  --line: #2b2b2b;
+  --text: #ffffff;
+  --text-dim: #a9a9a9;
+  --text-faint: #6f6f6f;
+  --accent: #fe2c55;
+  --accent-hover: #ff4468;
+  --cyan: #25f4ee;
+  --ok: #2dd4a7;
+  --warn: #ffb020;
+  --danger: #ff5c5c;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --sidebar-width: 232px;
+  --topbar-height: 60px;
+
+  font-family: Inter, 'Helvetica Neue', Arial, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+button,
+input,
+textarea {
+  font: inherit;
+}
+
+button {
+  cursor: pointer;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+h1,
+h2,
+h3,
+p {
+  margin: 0;
+}
+
+ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+::selection {
+  background: var(--accent);
+  color: #fff;
+}
+
+/* ===== Page primitives ===== */
+.page {
+  width: min(1120px, 100%);
+  margin: 0 auto;
+  padding: 30px 26px 48px;
+}
+
+.page-center {
+  min-height: 40vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 14px;
+  color: var(--text-dim);
+}
+
+.page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+}
+
+.page-head h1 {
+  font-size: 26px;
+  letter-spacing: -0.6px;
+}
+
+.page-sub {
+  margin-top: 8px;
+  color: var(--text-dim);
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 62ch;
+}
+
+.overline {
+  display: block;
+  margin-bottom: 8px;
+  color: var(--accent);
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  font-weight: 650;
+}
+
+.hint-chip {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 7px 12px;
+  font-size: 11px;
+  color: var(--text-dim);
+  background: var(--surface);
+  white-space: nowrap;
+}
+
+.error-note {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #4a1f26;
+  border-radius: var(--radius);
+  background: #1c0f12;
+  color: #ff8a9a;
+  font-size: 12.5px;
+  line-height: 1.5;
+}
+
+/* ===== Scrollbar ===== */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #333 transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: #2f2f2f;
+  border-radius: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

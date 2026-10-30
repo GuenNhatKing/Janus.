@@ -1,5 +1,5 @@
 {
-  "name": "stillframe-auth-ui",
+  "name": "janus-frontend",
   "private": true,
   "version": "1.0.0",
   "type": "module",
@@ -9,12 +9,12 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@tailwindcss/vite": "latest",
     "@vitejs/plugin-react": "latest",
-    "vite": "latest",
     "react": "latest",
     "react-dom": "latest",
+    "react-router-dom": "^7.18.5",
     "tailwindcss": "latest",
-    "@tailwindcss/vite": "latest"
-  },
-  "devDependencies": {}
+    "vite": "latest"
+  }
 }

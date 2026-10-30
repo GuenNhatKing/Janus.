@@ -15,7 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from app.db import Base, get_db
+from app.db.session import Base, get_db
 from app.main import app
 from app.models import AIJob, User, UserRole, Video, VideoStatus
 from app.security import hash_password

@@ -1,7 +1,7 @@
 from alembic import context
 
-from app.config import get_database_url, get_settings
-from app.db import Base
+from app.core.config import get_database_url, get_settings
+from app.db.session import Base
 from app import models
 
 config = context.config
