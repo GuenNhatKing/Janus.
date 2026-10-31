@@ -29,10 +29,6 @@ export default function TopBar() {
             {user.role}
           </span>
         )}
-        <Link to="/upload" className="button primary">
-          <Icon name="upload" size={15} />
-          Tải video
-        </Link>
         {isAuthenticated ? (
           <Link to="/profile" className="avatar" aria-label="Hồ sơ">
             {user.display_name.slice(0, 2).toUpperCase()}
