@@ -168,3 +168,10 @@ ul {
     transition-duration: 0.01ms !important;
   }
 }
+
+
+.button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+

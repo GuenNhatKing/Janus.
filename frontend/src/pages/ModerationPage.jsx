@@ -44,10 +44,10 @@ export default function ModerationPage() {
     <div className="page">
       <div className="page-head">
         <div>
-          <span className="overline">MODERATOR</span>
+          <span className="overline">Trạng thái video xem xét</span>
           <h1>Hàng đợi kiểm duyệt</h1>
           <p className="page-sub">
-            Duyệt video đang chờ và xử lý báo cáo của người dùng. Quyết định ghi vào moderation_reviews.
+            Duyệt, yêu cầu chỉnh sửa hoặc từ chối video trước khi xuất hiện trên feed.
           </p>
         </div>
         <div className="tabs" role="tablist">

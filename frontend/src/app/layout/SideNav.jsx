@@ -1,15 +1,23 @@
+import { useState } from 'react'
 import { NavLink } from 'react-router-dom'
 
 import Icon from '@/shared/components/Icon'
 import { useAuth } from '@/features/auth/AuthContext'
 
+
+
 const NAV_ITEMS = [
   { to: '/', label: 'Dành cho bạn', icon: 'home', end: true },
+  { to: '/edit-video', label: 'Chỉnh sửa video', icon: 'film', auth: true },
   { to: '/moderation', label: 'Kiểm duyệt', icon: 'shield', roles: ['moderator', 'admin'] },
 ]
 
+const SEARCH_HISTORY = ['video ngắn', 'kiểm duyệt', 'janus']
+const SEARCH_SUGGEST = ['video hot', 'nội dung mới', 'xu hướng']
+
 export default function SideNav() {
   const { user, isAuthenticated, logout } = useAuth()
+  const [searchOpen, setSearchOpen] = useState(false)
 
   return (
     <aside className="sidenav">
@@ -22,13 +30,41 @@ export default function SideNav() {
         </NavLink>
       </div>
 
-      <div className="nav-search">
-        <Icon name="search" size={16} />
-        <input type="text" placeholder="Tìm kiếm" />
+      <div className="nav-search-wrap">
+        <div className="nav-search">
+          <Icon name="search" size={16} />
+          <input type="text" placeholder="Tìm kiếm" onFocus={() => setSearchOpen(true)} onBlur={() => setTimeout(() => setSearchOpen(false), 150)} />
+        </div>
+        {searchOpen && (
+          <div className="search-dropdown">
+            <div className="search-section">
+              <div className="search-section-title">Lịch sử tìm kiếm</div>
+              {SEARCH_HISTORY.map((item) => (
+                <button key={item} type="button" className="search-item">
+                  <Icon name="clock" size={14} />
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+            <div className="search-section">
+              <div className="search-section-title">Gợi ý</div>
+              {SEARCH_SUGGEST.map((item) => (
+                <button key={item} type="button" className="search-item">
+                  <Icon name="search" size={14} />
+                  <span>{item}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
 
       <nav className="side-nav" aria-label="Điều hướng chính">
-        {NAV_ITEMS.filter((item) => !item.roles || (user && item.roles.includes(user.role))).map((item) => (
+        {NAV_ITEMS.filter((item) => {
+          if (item.roles) return user && item.roles.includes(user.role)
+          if (item.auth) return isAuthenticated
+          return true
+        }).map((item) => (
           <NavLink
             key={item.to}
             to={item.to}

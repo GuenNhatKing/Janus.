@@ -49,6 +49,12 @@
   background: #000;
 }
 
+.slide-stage video:fullscreen {
+  width: 100vw;
+  height: 100vh;
+  object-fit: contain;
+}
+
 .slide-play {
   position: absolute;
   display: grid;

@@ -9,6 +9,7 @@ import ModerationPage from '@/pages/ModerationPage'
 import ProfilePage from '@/pages/ProfilePage'
 import RegisterPage from '@/pages/RegisterPage'
 import UploadPage from '@/pages/UploadPage'
+import EditVideoPage from '@/pages/EditVideoPage'
 
 export default function App() {
   return (
@@ -22,6 +23,14 @@ export default function App() {
               element={
                 <RequireAuth>
                   <UploadPage />
+                </RequireAuth>
+              }
+            />
+            <Route
+              path="edit-video"
+              element={
+                <RequireAuth>
+                  <EditVideoPage />
                 </RequireAuth>
               }
             />
