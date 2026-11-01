@@ -52,6 +52,11 @@ export default function AuthCard({ mode }) {
 
   return (
     <div className="auth-card">
+      <button type="button" className="auth-back" onClick={() => navigate('/')} aria-label="Quay lại">
+        <Icon name="arrow" size={18} style={{ transform: 'rotate(180deg)' }} />
+        <span>Quay lại</span>
+      </button>
+
       <Link to="/" className="brand auth-brand">
         <span className="brand-mark">
           <Icon name="play" size={14} />
@@ -126,3 +131,4 @@ export default function AuthCard({ mode }) {
     </div>
   )
 }
+

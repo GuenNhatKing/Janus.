@@ -31,7 +31,7 @@ export default function UploadPage() {
     <div className="page">
       <div className="page-head">
         <div>
-          <span className="overline">QUY TRÌNH KIỂM THỬ</span>
+          <span className="overline">Tải video</span>
           <h1>Tải video lên</h1>
           <p className="page-sub">
             Video được backend kiểm tra định dạng, lưu trữ và chạy phân tích AI nền. Kết quả hiển thị ngay bên dưới.

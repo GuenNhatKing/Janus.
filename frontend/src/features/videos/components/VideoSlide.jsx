@@ -7,6 +7,7 @@ import CommentDrawer from './CommentDrawer'
 
 /** Một video trong feed: bấm để phát/tạm dừng, có các hành động bên phải. */
 export default function VideoSlide({ video, onReported }) {
+  const containerRef = useRef(null)
   const videoRef = useRef(null)
   const volumeRef = useRef(null)
   const [playing, setPlaying] = useState(false)
@@ -17,7 +18,7 @@ export default function VideoSlide({ video, onReported }) {
   const [liked, setLiked] = useState(false)
   const [followed, setFollowed] = useState(false)
   const [showVolume, setShowVolume] = useState(false)
-
+  const [fullscreen, setFullscreen] = useState(false)
   useEffect(() => {
     setPlaying(false)
     setLiked(false)
@@ -26,6 +27,7 @@ export default function VideoSlide({ video, onReported }) {
     setVolume(0.5)
     setShowVolume(false)
     setShowComments(false)
+    setFullscreen(false)
     if (videoRef.current) {
       videoRef.current.muted = true
       videoRef.current.volume = 0.5
@@ -80,11 +82,33 @@ export default function VideoSlide({ video, onReported }) {
     }
   }
 
+  function toggleFullscreen() {
+    const videoEl = videoRef.current
+    const containerEl = containerRef.current
+    if (!videoEl) return
+    const el = fullscreen ? containerEl : videoEl
+    if (!el) return
+    if (document.fullscreenElement) {
+      document.exitFullscreen()
+      setFullscreen(false)
+      return
+    }
+    el.requestFullscreen?.().then(() => setFullscreen(true)).catch(() => {})
+  }
+
+  useEffect(() => {
+    function onChange() {
+      setFullscreen(Boolean(document.fullscreenElement))
+    }
+    document.addEventListener('fullscreenchange', onChange)
+    return () => document.removeEventListener('fullscreenchange', onChange)
+  }, [])
+
   const viewCount = video.views || video.view_count || video.play_count || 0
   const likeCount = video.likes || video.like_count || 0
 
   return (
-    <article className="slide">
+    <article className="slide" ref={containerRef}>
       <button type="button" className="slide-stage" onClick={togglePlayback} aria-label="Phát hoặc tạm dừng video">
         <video
           ref={videoRef}
@@ -161,6 +185,10 @@ export default function VideoSlide({ video, onReported }) {
             <input type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={changeVolume} />
           </div>
         </div>
+        <button type="button" className="rail-button" onClick={toggleFullscreen} aria-label={fullscreen ? 'Thu nhỏ' : 'Phóng to'}>
+          <Icon name="expand" size={22} />
+          <span>{fullscreen ? 'Thu nhỏ' : 'Phóng to'}</span>
+        </button>
         <button type="button" className="rail-button" onClick={() => setReporting(true)} aria-label="Báo cáo">
           <Icon name="flag" size={22} />
           <span>Báo cáo</span>
@@ -172,3 +200,4 @@ export default function VideoSlide({ video, onReported }) {
     </article>
   )
 }
+
