@@ -7,6 +7,16 @@ from app.schemas.admin import (
 from app.schemas.auth import LoginRequest, TokenResponse
 from app.schemas.moderation import ModerationDecisionRequest
 from app.schemas.report import ReportCreate, ReportResponse
+from app.schemas.social import (
+    BookmarkedVideosResponse,
+    BookmarkResponse,
+    CommentCreate,
+    CommentResponse,
+    CommentsResponse,
+    FollowResponse,
+    LikeResponse,
+    UsersResponse,
+)
 from app.schemas.user import (
     ChangePasswordRequest,
     MessageResponse,
@@ -23,8 +33,15 @@ __all__ = [
     "AdminUserDetail",
     "AdminUserStatusUpdate",
     "AdminUserSummary",
+    "BookmarkResponse",
+    "BookmarkedVideosResponse",
     "ChangePasswordRequest",
+    "CommentCreate",
+    "CommentResponse",
+    "CommentsResponse",
+    "FollowResponse",
     "LabelResponse",
+    "LikeResponse",
     "LoginRequest",
     "MessageResponse",
     "ModerationDecisionRequest",
@@ -35,5 +52,6 @@ __all__ = [
     "TokenResponse",
     "UserCreate",
     "UserResponse",
+    "UsersResponse",
     "VideoResponse",
 ]

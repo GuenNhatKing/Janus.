@@ -5,6 +5,7 @@ from app.services import (
     moderation_service,
     profile_service,
     search_service,
+    social_service,
     video_service,
 )
 
@@ -15,5 +16,6 @@ __all__ = [
     "moderation_service",
     "profile_service",
     "search_service",
+    "social_service",
     "video_service",
 ]
