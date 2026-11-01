@@ -20,19 +20,26 @@ const PATHS = {
   refresh: 'M20 12a8 8 0 1 1-2.3-5.6M20 4v4h-4',
   eye: 'M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Zm9.5 2.5a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Z',
   arrow: 'M5 12h14m-6-6 6 6-6 6',
+  search: 'M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16Zm10 2-5.2-5.2',
+  heart: 'M12 21s-7-4.6-9.3-8.7C1 9.2 2.5 5.5 6.2 4.6c2.1-.5 4.2.4 5.8 1.9 1.6-1.5 3.7-2.4 5.8-1.9 3.7.9 5.2 4.6 3.5 7.7C19 16.4 12 21 12 21Z',
+  'heart-filled': 'M12 21s-7-4.6-9.3-8.7C1 9.2 2.5 5.5 6.2 4.6c2.1-.5 4.2.4 5.8 1.9 1.6-1.5 3.7-2.4 5.8-1.9 3.7.9 5.2 4.6 3.5 7.7C19 16.4 12 21 12 21Z',
+  message: 'M21 15a4 4 0 0 1-4 4H7l-4 3V7a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4v8Z',
 }
+
+const FILLED = new Set(['heart-filled'])
 
 export default function Icon({ name, size = 20, className = '' }) {
   const d = PATHS[name]
   if (!d) return null
+  const isFilled = FILLED.has(name)
   return (
     <svg
       className={className}
       width={size}
       height={size}
       viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
+      fill={isFilled ? '#fe2c55' : 'none'}
+      stroke={isFilled ? '#fe2c55' : 'currentColor'}
       strokeWidth="1.7"
       strokeLinecap="round"
       strokeLinejoin="round"

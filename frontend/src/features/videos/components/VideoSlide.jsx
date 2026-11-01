@@ -1,23 +1,35 @@
 import { useEffect, useRef, useState } from 'react'
 
 import Icon from '@/shared/components/Icon'
-import { formatBytes } from '@/shared/lib/format'
 import { streamUrl } from '../api/videosApi'
 import ReportDialog from './ReportDialog'
+import CommentDrawer from './CommentDrawer'
 
 /** Một video trong feed: bấm để phát/tạm dừng, có các hành động bên phải. */
 export default function VideoSlide({ video, onReported }) {
   const videoRef = useRef(null)
+  const volumeRef = useRef(null)
   const [playing, setPlaying] = useState(false)
   const [muted, setMuted] = useState(true)
+  const [volume, setVolume] = useState(0.5)
   const [reporting, setReporting] = useState(false)
+  const [showComments, setShowComments] = useState(false)
   const [liked, setLiked] = useState(false)
   const [followed, setFollowed] = useState(false)
+  const [showVolume, setShowVolume] = useState(false)
 
   useEffect(() => {
     setPlaying(false)
     setLiked(false)
     setFollowed(false)
+    setMuted(true)
+    setVolume(0.5)
+    setShowVolume(false)
+    setShowComments(false)
+    if (videoRef.current) {
+      videoRef.current.muted = true
+      videoRef.current.volume = 0.5
+    }
   }, [video.id])
 
   async function togglePlayback() {
@@ -33,6 +45,38 @@ export default function VideoSlide({ video, onReported }) {
     } else {
       element.pause()
       setPlaying(false)
+    }
+  }
+
+  function toggleMute() {
+    const element = videoRef.current
+    if (!element) return
+    const nextMuted = !(muted || volume === 0)
+    if (nextMuted) {
+      setMuted(true)
+      element.muted = true
+    } else {
+      setMuted(false)
+      element.muted = false
+      if (volume === 0) {
+        setVolume(0.5)
+        element.volume = 0.5
+      }
+    }
+  }
+
+  function changeVolume(e) {
+    const value = Number(e.target.value)
+    setVolume(value)
+    const element = videoRef.current
+    if (!element) return
+    element.volume = value
+    if (value === 0) {
+      setMuted(true)
+      element.muted = true
+    } else {
+      setMuted(false)
+      element.muted = false
     }
   }
 
@@ -74,30 +118,57 @@ export default function VideoSlide({ video, onReported }) {
       </div>
 
       <div className="slide-actions">
-        <button type="button" className={`rail-button ${liked ? 'active' : ''}`} onClick={() => setLiked((v) => !v)}>
-          <Icon name="heart" size={22} />
-          <span>{likeCount + (liked ? 1 : 0)}</span>
+        <button type="button" className={`rail-button ${liked ? 'active' : ''}`} onClick={() => setLiked((v) => !v)} aria-label="Thích">
+          <Icon name={liked ? 'heart-filled' : 'heart'} size={22} />
+          <span>{(likeCount + (liked ? 1 : 0)).toLocaleString('vi-VN')}</span>
         </button>
-        <button type="button" className="rail-button">
+        <button type="button" className="rail-button" aria-label="Bình luận" onClick={() => setShowComments(true)}>
           <Icon name="message" size={22} />
           <span>Bình luận</span>
         </button>
-        <button
-          type="button"
-          className="rail-button"
-          onClick={() => setMuted((value) => !value)}
-          aria-label={muted ? 'Bật tiếng' : 'Tắt tiếng'}
+        <div
+          className="rail-volume"
+          ref={volumeRef}
+          onMouseEnter={() => setShowVolume(true)}
+          onMouseLeave={() => {
+            window.setTimeout(() => {
+              const wrapper = volumeRef.current
+              if (!wrapper) return
+              if (!wrapper.matches(':hover')) {
+                setShowVolume(false)
+              }
+            }, 120)
+          }}
         >
-          <Icon name={muted ? 'mute' : 'volume'} size={22} />
-          <span>{muted ? 'Bật tiếng' : 'Tắt tiếng'}</span>
-        </button>
-        <button type="button" className="rail-button" onClick={() => setReporting(true)}>
+          <button
+            type="button"
+            className="rail-button"
+            onClick={toggleMute}
+            aria-label={muted || volume === 0 ? 'Bật tiếng' : 'Tắt tiếng'}
+          >
+            <Icon name={muted || volume === 0 ? 'mute' : 'volume'} size={22} />
+            <span>{muted || volume === 0 ? 'Bật tiếng' : 'Âm lượng'}</span>
+          </button>
+          <div className={`volume-slider ${showVolume ? 'visible' : ''}`} onMouseEnter={() => setShowVolume(true)} onMouseLeave={() => {
+            window.setTimeout(() => {
+              const wrapper = volumeRef.current
+              if (!wrapper) return
+              if (!wrapper.matches(':hover')) {
+                setShowVolume(false)
+              }
+            }, 120)
+          }}>
+            <input type="range" min="0" max="1" step="0.01" value={muted ? 0 : volume} onChange={changeVolume} />
+          </div>
+        </div>
+        <button type="button" className="rail-button" onClick={() => setReporting(true)} aria-label="Báo cáo">
           <Icon name="flag" size={22} />
           <span>Báo cáo</span>
         </button>
       </div>
 
       {reporting && <ReportDialog video={video} onClose={() => setReporting(false)} onReported={onReported} />}
+      {showComments && <CommentDrawer video={video} onClose={() => setShowComments(false)} />}
     </article>
   )
 }

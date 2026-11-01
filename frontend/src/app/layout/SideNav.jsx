@@ -69,7 +69,6 @@ export default function SideNav() {
             </button>
           </>
         ) : null}
-        <p className="side-note">Dữ liệu demo · không phải kết luận kiểm duyệt</p>
       </div>
     </aside>
   )
