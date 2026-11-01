@@ -7,9 +7,21 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.core.config import get_settings
-from app.exceptions import InvalidInputError, NotFoundError, PayloadTooLargeError
-from app.models import AIJob, JobStatus, User, UserRole, Video, VideoStatus
-from app.schemas import AIResultResponse, LabelResponse
+from app.exceptions import (
+    ForbiddenError,
+    InvalidInputError,
+    NotFoundError,
+    PayloadTooLargeError,
+)
+from app.models import (
+    AIJob,
+    User,
+    UserRole,
+    Video,
+    VideoStatus,
+    VideoVisibility,
+)
+from app.schemas import AIResultResponse, LabelResponse, VideoUpdate
 from app.services.ai_service import validate_mp4_content
 
 FEED_LIMIT = 50
@@ -70,7 +82,11 @@ def list_published_feed(db: Session) -> list[Video]:
         db.scalars(
             select(Video)
             .options(selectinload(Video.owner))
-            .where(Video.status == VideoStatus.published, Video.is_deleted.is_(False))
+            .where(
+                Video.status == VideoStatus.published,
+                Video.is_deleted.is_(False),
+                Video.visibility == VideoVisibility.public,
+            )
             .order_by(Video.created_at.desc())
             .limit(FEED_LIMIT)
         )
@@ -85,7 +101,12 @@ def get_ai_result(db: Session, video_id: UUID, requester: User) -> AIResultRespo
         raise NotFoundError("Không tìm thấy video")
     job = db.scalar(select(AIJob).where(AIJob.video_id == video_id).order_by(AIJob.created_at.desc()))
     labels = [
-        LabelResponse(name=item.label.name, confidence=item.confidence, level=item.level)
+        LabelResponse(
+            name=item.label.name,
+            confidence=item.confidence,
+            level=item.level,
+            source=item.source,
+        )
         for item in video.labels
     ]
     return AIResultResponse(
@@ -105,6 +126,28 @@ def soft_delete_video(db: Session, video_id: UUID, owner: User) -> None:
     db.commit()
 
 
+def update_video(
+    db: Session, video_id: UUID, owner: User, payload: VideoUpdate
+) -> Video:
+    video = db.get(Video, video_id)
+    if video is None or video.is_deleted:
+        raise NotFoundError("Không tìm thấy video")
+    if video.owner_id != owner.id:
+        raise ForbiddenError("Bạn không có quyền chỉnh sửa video này")
+    values = payload.model_dump(exclude_unset=True)
+    if video.status == VideoStatus.rejected and values.get("visibility") == VideoVisibility.public:
+        raise InvalidInputError("Video đã bị từ chối không thể chuyển sang công khai")
+    if "caption" in values:
+        video.caption = values["caption"]
+    if "visibility" in values:
+        video.visibility = values["visibility"]
+    if "allow_comments" in values:
+        video.allow_comments = values["allow_comments"]
+    db.commit()
+    db.refresh(video)
+    return video
+
+
 def resolve_stream_path(db: Session, video_id: UUID, requester: User | None) -> Path:
     """Trả về đường dẫn tệp phát được: video published cho mọi người,
     còn lại chỉ chủ video hoặc moderator/admin."""
@@ -113,7 +156,11 @@ def resolve_stream_path(db: Session, video_id: UUID, requester: User | None) -> 
         raise NotFoundError("Không tìm thấy video")
     is_owner = requester is not None and video.owner_id == requester.id
     is_staff = requester is not None and requester.role in {UserRole.moderator, UserRole.admin}
-    if video.status != VideoStatus.published and not (is_owner or is_staff):
+    is_public = (
+        video.status == VideoStatus.published
+        and video.visibility == VideoVisibility.public
+    )
+    if not is_public and not (is_owner or is_staff):
         raise NotFoundError("Không tìm thấy video")
     path = Path(video.storage_path)
     if not path.is_file():

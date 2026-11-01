@@ -8,8 +8,22 @@ from app.core.config import get_settings
 from app.db.session import get_db
 from app.dependencies import current_user, optional_user
 from app.models import User, Video
-from app.schemas import AIResultResponse, ReportCreate, ReportResponse, VideoResponse
-from app.services import ai_service, moderation_service, video_service
+from app.schemas import (
+    AIResultResponse,
+    ConfirmLabelsRequest,
+    LabelResponse,
+    ReportCreate,
+    ReportResponse,
+    VideoLabelsResponse,
+    VideoResponse,
+    VideoUpdate,
+)
+from app.services import (
+    ai_service,
+    moderation_service,
+    video_label_service,
+    video_service,
+)
 
 router = APIRouter(tags=["videos"])
 
@@ -52,6 +66,38 @@ def feed(db: Session = Depends(get_db)) -> list[Video]:
 @router.get("/videos/{video_id}/ai", response_model=AIResultResponse)
 def ai_result(video_id: UUID, user: User = Depends(current_user), db: Session = Depends(get_db)) -> AIResultResponse:
     return video_service.get_ai_result(db, video_id, user)
+
+
+@router.patch("/videos/{video_id}", response_model=VideoResponse)
+def update_video(
+    video_id: UUID,
+    payload: VideoUpdate,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> Video:
+    return video_service.update_video(db, video_id, user, payload)
+
+
+@router.get("/videos/{video_id}/labels", response_model=list[LabelResponse])
+def labels(
+    video_id: UUID,
+    user: User | None = Depends(optional_user),
+    db: Session = Depends(get_db),
+) -> list[LabelResponse]:
+    return video_label_service.list_video_labels(db, video_id, user)
+
+
+@router.post(
+    "/videos/{video_id}/labels/confirm",
+    response_model=VideoLabelsResponse,
+)
+def confirm_labels(
+    video_id: UUID,
+    payload: ConfirmLabelsRequest,
+    user: User = Depends(current_user),
+    db: Session = Depends(get_db),
+) -> VideoLabelsResponse:
+    return video_label_service.confirm_video_labels(db, video_id, user, payload)
 
 
 @router.get("/videos/{video_id}/stream")

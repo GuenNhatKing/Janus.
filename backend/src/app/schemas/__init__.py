@@ -25,7 +25,14 @@ from app.schemas.user import (
     UserCreate,
     UserResponse,
 )
-from app.schemas.video import AIResultResponse, LabelResponse, VideoResponse
+from app.schemas.video import (
+    AIResultResponse,
+    ConfirmLabelsRequest,
+    LabelResponse,
+    VideoLabelsResponse,
+    VideoResponse,
+    VideoUpdate,
+)
 
 __all__ = [
     "AIResultResponse",
@@ -39,6 +46,7 @@ __all__ = [
     "CommentCreate",
     "CommentResponse",
     "CommentsResponse",
+    "ConfirmLabelsRequest",
     "FollowResponse",
     "LabelResponse",
     "LikeResponse",
@@ -53,5 +61,7 @@ __all__ = [
     "UserCreate",
     "UserResponse",
     "UsersResponse",
+    "VideoLabelsResponse",
     "VideoResponse",
+    "VideoUpdate",
 ]

@@ -1,9 +1,9 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from app.models.enums import VideoStatus
+from app.models.enums import LabelSource, VideoStatus, VideoVisibility
 
 
 class VideoResponse(BaseModel):
@@ -12,6 +12,8 @@ class VideoResponse(BaseModel):
     id: UUID
     original_filename: str
     caption: str | None
+    visibility: VideoVisibility
+    allow_comments: bool
     size_bytes: int
     status: VideoStatus
     created_at: datetime
@@ -22,6 +24,48 @@ class LabelResponse(BaseModel):
     name: str
     confidence: float
     level: str
+    source: LabelSource = LabelSource.ai
+
+
+class VideoUpdate(BaseModel):
+    caption: str | None = Field(default=None, max_length=500)
+    visibility: VideoVisibility | None = None
+    allow_comments: bool | None = None
+
+    @field_validator("caption")
+    @classmethod
+    def normalize_caption(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        value = value.strip()
+        return value or None
+
+
+class ConfirmLabelsRequest(BaseModel):
+    labels: list[str] = Field(default_factory=list, max_length=20)
+
+    @field_validator("labels")
+    @classmethod
+    def normalize_labels(cls, values: list[str]) -> list[str]:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for value in values:
+            label = value.strip().lstrip("#").strip()
+            if not label:
+                raise ValueError("Nhãn không được để trống")
+            if len(label) > 80:
+                raise ValueError("Nhãn không được vượt quá 80 ký tự")
+            key = label.casefold()
+            if key not in seen:
+                seen.add(key)
+                normalized.append(label)
+        return normalized
+
+
+class VideoLabelsResponse(BaseModel):
+    video: VideoResponse
+    labels: list[LabelResponse]
+    moderation_required: bool
 
 
 class AIResultResponse(BaseModel):

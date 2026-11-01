@@ -11,7 +11,16 @@ from app.ai.pipeline import analyse_video
 from app.core.config import get_settings
 from app.core.security import hash_opaque_token, new_opaque_token
 from app.db.session import SessionLocal
-from app.models import AIJob, JobStatus, Label, User, Video, VideoLabel, VideoStatus
+from app.models import (
+    AIJob,
+    JobStatus,
+    Label,
+    LabelSource,
+    User,
+    Video,
+    VideoLabel,
+    VideoStatus,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +74,7 @@ def _apply_mock_result(db: Session, job: AIJob, video: Video, note: str | None =
             label_id=safe_label.id,
             confidence=0.95,
             level=confidence_level(0.95),
+            source=LabelSource.ai,
         )
     )
     job.status = JobStatus.succeeded
@@ -83,6 +93,7 @@ def _apply_analysis_report(db: Session, job: AIJob, video: Video, report: Analys
                 label_id=_upsert_label(db, detection.label).id,
                 confidence=detection.confidence,
                 level=confidence_level(detection.confidence),
+                source=LabelSource.ai,
             )
         )
     if report.is_safe:
@@ -92,6 +103,7 @@ def _apply_analysis_report(db: Session, job: AIJob, video: Video, report: Analys
                 label_id=_upsert_label(db, SAFE_LABEL).id,
                 confidence=report.normal_confidence,
                 level=confidence_level(report.normal_confidence),
+                source=LabelSource.ai,
             )
         )
         video.status = VideoStatus.published

@@ -16,6 +16,16 @@ class VideoStatus(str, Enum):
     deleted = "deleted"
 
 
+class VideoVisibility(str, Enum):
+    public = "public"
+    private = "private"
+
+
+class LabelSource(str, Enum):
+    ai = "ai"
+    user = "user"
+
+
 class JobStatus(str, Enum):
     pending = "pending"
     running = "running"

@@ -134,7 +134,9 @@ def list_comments(
 def create_comment(
     db: Session, video_id: UUID, user: User, payload: CommentCreate
 ) -> VideoComment:
-    _published_video(db, video_id)
+    video = _published_video(db, video_id)
+    if not video.allow_comments:
+        raise ForbiddenError("Video hiện không cho phép bình luận")
     comment = VideoComment(
         video_id=video_id, author_id=user.id, content=payload.content.strip()
     )

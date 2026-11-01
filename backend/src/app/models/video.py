@@ -17,7 +17,7 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, utcnow
-from app.models.enums import JobStatus, VideoStatus
+from app.models.enums import JobStatus, LabelSource, VideoStatus, VideoVisibility
 from app.models.user import User
 
 
@@ -31,6 +31,12 @@ class Video(Base):
     mime_type: Mapped[str] = mapped_column(String(100))
     size_bytes: Mapped[int] = mapped_column(Integer)
     caption: Mapped[str | None] = mapped_column(Text, nullable=True)
+    visibility: Mapped[VideoVisibility] = mapped_column(
+        String(10), default=VideoVisibility.public, nullable=False
+    )
+    allow_comments: Mapped[bool] = mapped_column(
+        Boolean, default=True, nullable=False
+    )
     status: Mapped[VideoStatus] = mapped_column(
         SqlEnum(VideoStatus), default=VideoStatus.processing, index=True
     )
@@ -78,6 +84,9 @@ class VideoLabel(Base):
     label_id: Mapped[UUID] = mapped_column(ForeignKey("labels.id"), index=True)
     confidence: Mapped[float] = mapped_column(Float)
     level: Mapped[str] = mapped_column(String(10))
+    source: Mapped[LabelSource] = mapped_column(
+        String(10), default=LabelSource.ai, nullable=False
+    )
 
     video: Mapped[Video] = relationship(back_populates="labels")
     label: Mapped[Label] = relationship(back_populates="videos")
