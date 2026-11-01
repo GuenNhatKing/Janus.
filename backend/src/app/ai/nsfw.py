@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import subprocess
 import sys
 import tempfile
@@ -38,6 +39,12 @@ MODEL_FILES = (
 _preflight_cache: tuple[bool, str] | None = None
 
 
+def _subprocess_env() -> dict[str, str]:
+    environment = os.environ.copy()
+    environment["PYTHONIOENCODING"] = "utf-8"
+    return environment
+
+
 def pipeline_dir() -> Path:
     """Thư mục ``backend/NSFW-Detection/src`` chứa script pipeline và các model."""
     configured = get_settings().nsfw_pipeline_dir
@@ -48,7 +55,11 @@ def pipeline_dir() -> Path:
 
 
 def _interpreter() -> str:
-    return get_settings().nsfw_python or sys.executable
+    configured = get_settings().nsfw_python.strip()
+    if configured:
+        return configured
+    specialized = pipeline_dir() / ".venv" / "Scripts" / "python.exe"
+    return str(specialized) if specialized.exists() else sys.executable
 
 
 def _check_preflight() -> tuple[bool, str]:
@@ -69,8 +80,12 @@ def _check_preflight() -> tuple[bool, str]:
     try:
         proc = subprocess.run(
             [_interpreter(), "-c", probe, *REQUIRED_MODULES],
+            check=False,
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
+            env=_subprocess_env(),
             timeout=60,
         )
     except (OSError, subprocess.SubprocessError) as exc:
@@ -151,9 +166,13 @@ def analyse(video_path: Path) -> AnalysisReport:
         try:
             proc = subprocess.run(
                 command,
+                check=False,
                 cwd=str(pipeline_dir()),
                 capture_output=True,
                 text=True,
+                encoding="utf-8",
+                errors="replace",
+                env=_subprocess_env(),
                 timeout=settings.nsfw_timeout_seconds,
             )
         except subprocess.TimeoutExpired as exc:

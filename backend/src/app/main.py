@@ -10,12 +10,18 @@ from fastapi.responses import JSONResponse
 from app.api.v1.router import api_router
 from app.core.config import get_settings
 from app.exceptions import ServiceError
+from app.services.storage_service import StorageService
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
+    settings = get_settings()
+    settings.validate_storage_config()
     # Tạo thư mục upload trước request đầu tiên (thay cho on_event("startup") đã deprecated).
-    Path(get_settings().upload_dir).mkdir(parents=True, exist_ok=True)
+    if settings.storage_driver.strip().lower() == "local":
+        Path(settings.upload_dir).mkdir(parents=True, exist_ok=True)
+    else:
+        StorageService()
     yield
 
 

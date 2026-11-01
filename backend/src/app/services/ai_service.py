@@ -4,6 +4,7 @@ from pathlib import Path
 from uuid import UUID
 
 from sqlalchemy import delete, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.ai.base import SAFE_LABEL, AnalysisReport, DetectorUnavailableError
@@ -21,6 +22,8 @@ from app.models import (
     VideoLabel,
     VideoStatus,
 )
+from app.services.storage_service import get_storage_service
+from app.services.thumbnail_service import extract_first_frame
 
 logger = logging.getLogger(__name__)
 
@@ -58,9 +61,15 @@ def confidence_level(score: float) -> str:
 def _upsert_label(db: Session, name: str) -> Label:
     label = db.scalar(select(Label).where(Label.name == name))
     if label is None:
-        label = Label(name=name)
-        db.add(label)
-        db.flush()
+        try:
+            with db.begin_nested():
+                label = Label(name=name)
+                db.add(label)
+                db.flush()
+        except IntegrityError:
+            label = db.scalar(select(Label).where(Label.name == name))
+            if label is None:
+                raise
     return label
 
 
@@ -166,18 +175,24 @@ def run_video_analysis(video_id: UUID) -> None:
             )
 
         report: AnalysisReport | None = None
-        if mode != "off":
-            try:
-                report = analyse_video(Path(video.storage_path))
-            except DetectorUnavailableError as exc:
-                if mode == "required":
-                    raise
-                logger.warning(
-                    "NSFW-Detection chưa sẵn sàng, dùng kết quả mock: %s", exc
-                )
-                note = f"[NSFW-Detection chưa sẵn sàng: {exc}]"
-                _apply_mock_result(db, job, video, note)
-                return
+        with get_storage_service().download_to_temp(video.storage_path) as path:
+            thumbnail = extract_first_frame(path)
+            get_storage_service().upload_thumbnail(
+                f"thumbnails/{video.id}.jpg",
+                thumbnail,
+            )
+            if mode != "off":
+                try:
+                    report = analyse_video(path)
+                except DetectorUnavailableError as exc:
+                    if mode == "required":
+                        raise
+                    logger.warning(
+                        "NSFW-Detection chưa sẵn sàng, dùng kết quả mock: %s", exc
+                    )
+                    note = f"[NSFW-Detection chưa sẵn sàng: {exc}]"
+                    _apply_mock_result(db, job, video, note)
+                    return
 
         if report is None:
             _apply_mock_result(db, job, video)

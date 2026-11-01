@@ -20,6 +20,21 @@ class VideoResponse(BaseModel):
     owner_name: str | None = None
 
 
+class FeedItem(BaseModel):
+    id: UUID
+    caption: str | None
+    stream_url: str
+    thumbnail_url: str | None
+    allow_comments: bool
+    created_at: datetime
+
+
+class FeedResponse(BaseModel):
+    items: list[FeedItem]
+    has_more: bool
+    next_cursor: datetime | None
+
+
 class LabelResponse(BaseModel):
     name: str
     confidence: float

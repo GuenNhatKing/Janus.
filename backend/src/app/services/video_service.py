@@ -1,5 +1,6 @@
 """Nghiệp vụ video: tải lên, truy vấn, kết quả AI và phát tệp."""
 
+from datetime import datetime
 from pathlib import Path
 from uuid import UUID
 
@@ -21,11 +22,9 @@ from app.models import (
     VideoStatus,
     VideoVisibility,
 )
-from app.schemas import AIResultResponse, LabelResponse, VideoUpdate
+from app.schemas import AIResultResponse, FeedItem, FeedResponse, LabelResponse, VideoUpdate
 from app.services.ai_service import validate_mp4_content
-
-FEED_LIMIT = 50
-
+from app.services.storage_service import get_storage_service
 
 def upload_video(
     db: Session,
@@ -57,11 +56,24 @@ def upload_video(
     )
     db.add(video)
     db.flush()
-    path = Path(settings.upload_dir) / f"{video.id}.mp4"
-    path.write_bytes(content)
-    video.storage_path = str(path)
+    storage = get_storage_service()
+    object_key = f"videos/{video.id}.mp4"
+    stored_path = storage.upload_file(object_key, content, "video/mp4")
+    video.storage_path = stored_path
     db.add(AIJob(video_id=video.id))
-    db.commit()
+    try:
+        db.commit()
+    except Exception:
+        db.rollback()
+        try:
+            storage.delete_file(stored_path)
+        except Exception:
+            import logging
+
+            logging.getLogger(__name__).exception(
+                "Không thể dọn object video mồ côi %s", stored_path
+            )
+        raise
     db.refresh(video)
     return video
 
@@ -77,19 +89,51 @@ def list_owned_videos(db: Session, owner: User) -> list[Video]:
     )
 
 
-def list_published_feed(db: Session) -> list[Video]:
-    return list(
+def list_published_feed(
+    db: Session, *, limit: int, cursor: datetime | None = None
+) -> FeedResponse:
+    conditions = [
+        Video.status == VideoStatus.published,
+        Video.is_deleted.is_(False),
+        Video.visibility == VideoVisibility.public,
+    ]
+    if cursor is not None:
+        conditions.append(Video.created_at < cursor)
+
+    videos = list(
         db.scalars(
             select(Video)
             .options(selectinload(Video.owner))
-            .where(
-                Video.status == VideoStatus.published,
-                Video.is_deleted.is_(False),
-                Video.visibility == VideoVisibility.public,
-            )
+            .where(*conditions)
             .order_by(Video.created_at.desc())
-            .limit(FEED_LIMIT)
+            .limit(limit + 1)
         )
+    )
+    has_more = len(videos) > limit
+    items = videos[:limit]
+    storage = get_storage_service()
+    feed_items = [
+        FeedItem(
+            id=video.id,
+            caption=video.caption,
+            stream_url=(
+                storage.get_stream_url(video.storage_path, public=True)
+                if storage.is_s3
+                and not storage.is_existing_local_path(video.storage_path)
+                else f"/api/v1/videos/{video.id}/stream"
+            ),
+            thumbnail_url=storage.get_thumbnail_url(
+                f"thumbnails/{video.id}.jpg"
+            ),
+            allow_comments=video.allow_comments,
+            created_at=video.created_at,
+        )
+        for video in items
+    ]
+    return FeedResponse(
+        items=feed_items,
+        has_more=has_more,
+        next_cursor=items[-1].created_at if has_more and items else None,
     )
 
 
@@ -148,7 +192,9 @@ def update_video(
     return video
 
 
-def resolve_stream_path(db: Session, video_id: UUID, requester: User | None) -> Path:
+def resolve_stream_target(
+    db: Session, video_id: UUID, requester: User | None
+) -> Path | str:
     """Trả về đường dẫn tệp phát được: video published cho mọi người,
     còn lại chỉ chủ video hoặc moderator/admin."""
     video = db.get(Video, video_id)
@@ -162,6 +208,9 @@ def resolve_stream_path(db: Session, video_id: UUID, requester: User | None) -> 
     )
     if not is_public and not (is_owner or is_staff):
         raise NotFoundError("Không tìm thấy video")
+    storage = get_storage_service()
+    if storage.is_s3 and not storage.is_existing_local_path(video.storage_path):
+        return storage.get_stream_url(video.storage_path, public=is_public)
     path = Path(video.storage_path)
     if not path.is_file():
         raise NotFoundError("Không tìm thấy tệp video")

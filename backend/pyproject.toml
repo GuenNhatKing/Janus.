@@ -5,8 +5,10 @@ description = "PBL6 short-video moderation platform"
 requires-python = ">=3.12,<3.14"
 dependencies = [
     "alembic>=1.13,<2",
+    "boto3>=1.43.123",
     "email-validator>=2.2,<3",
     "fastapi[standard]>=0.115,<1",
+    "opencv-python>=5.0.0.93",
     "psycopg[binary]>=3.2,<4",
     "pydantic-settings>=2.6,<3",
     "pyjwt>=2.9,<3",

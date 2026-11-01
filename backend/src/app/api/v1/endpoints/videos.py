@@ -1,7 +1,8 @@
+from datetime import datetime
 from uuid import UUID
 
-from fastapi import APIRouter, BackgroundTasks, Depends, File, UploadFile, status
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Query, UploadFile, status
+from fastapi.responses import FileResponse, RedirectResponse
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -11,6 +12,7 @@ from app.models import User, Video
 from app.schemas import (
     AIResultResponse,
     ConfirmLabelsRequest,
+    FeedResponse,
     LabelResponse,
     ReportCreate,
     ReportResponse,
@@ -58,9 +60,13 @@ def list_my_videos(user: User = Depends(current_user), db: Session = Depends(get
     return video_service.list_owned_videos(db, user)
 
 
-@router.get("/feed", response_model=list[VideoResponse])
-def feed(db: Session = Depends(get_db)) -> list[Video]:
-    return video_service.list_published_feed(db)
+@router.get("/feed", response_model=FeedResponse)
+def feed(
+    limit: int = Query(default=8, ge=1, le=20),
+    cursor: datetime | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> FeedResponse:
+    return video_service.list_published_feed(db, limit=limit, cursor=cursor)
 
 
 @router.get("/videos/{video_id}/ai", response_model=AIResultResponse)
@@ -100,13 +106,19 @@ def confirm_labels(
     return video_label_service.confirm_video_labels(db, video_id, user, payload)
 
 
-@router.get("/videos/{video_id}/stream")
-def stream_video(video_id: UUID, user: User | None = Depends(optional_user), db: Session = Depends(get_db)) -> FileResponse:
-    path = video_service.resolve_stream_path(db, video_id, user)
+@router.get("/videos/{video_id}/stream", response_model=None)
+def stream_video(
+    video_id: UUID,
+    user: User | None = Depends(optional_user),
+    db: Session = Depends(get_db),
+) -> FileResponse | RedirectResponse:
+    target = video_service.resolve_stream_target(db, video_id, user)
+    if isinstance(target, str):
+        return RedirectResponse(url=target, status_code=status.HTTP_307_TEMPORARY_REDIRECT)
     return FileResponse(
-        path,
+        target,
         media_type="video/mp4",
-        filename=path.name,
+        filename=target.name,
         headers={"Cache-Control": "private, max-age=60"},
     )
 

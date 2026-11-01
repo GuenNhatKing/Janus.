@@ -28,6 +28,8 @@ from app.schemas.user import (
 from app.schemas.video import (
     AIResultResponse,
     ConfirmLabelsRequest,
+    FeedItem,
+    FeedResponse,
     LabelResponse,
     VideoLabelsResponse,
     VideoResponse,
@@ -47,6 +49,8 @@ __all__ = [
     "CommentResponse",
     "CommentsResponse",
     "ConfirmLabelsRequest",
+    "FeedItem",
+    "FeedResponse",
     "FollowResponse",
     "LabelResponse",
     "LikeResponse",
