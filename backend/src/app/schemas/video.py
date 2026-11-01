@@ -35,6 +35,29 @@ class FeedResponse(BaseModel):
     next_cursor: datetime | None
 
 
+class SearchTagAuthor(BaseModel):
+    id: UUID
+    username: str
+    avatar_url: str | None
+
+
+class SearchTagItem(BaseModel):
+    id: UUID
+    caption: str | None
+    thumbnail_url: str | None
+    stream_url: str
+    like_count: int
+    author: SearchTagAuthor
+    matched_labels: list[str]
+    created_at: datetime
+
+
+class SearchTagResponse(BaseModel):
+    items: list[SearchTagItem]
+    has_more: bool
+    next_cursor: datetime | None
+
+
 class LabelResponse(BaseModel):
     name: str
     confidence: float

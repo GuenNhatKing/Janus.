@@ -16,6 +16,7 @@ from app.schemas import (
     LabelResponse,
     ReportCreate,
     ReportResponse,
+    SearchTagResponse,
     VideoLabelsResponse,
     VideoResponse,
     VideoUpdate,
@@ -23,6 +24,7 @@ from app.schemas import (
 from app.services import (
     ai_service,
     moderation_service,
+    search_service,
     video_label_service,
     video_service,
 )
@@ -67,6 +69,18 @@ def feed(
     db: Session = Depends(get_db),
 ) -> FeedResponse:
     return video_service.list_published_feed(db, limit=limit, cursor=cursor)
+
+
+@router.get("/videos/search", response_model=SearchTagResponse)
+def search_videos(
+    tag: str = Query(..., min_length=1),
+    limit: int = Query(default=12, ge=1, le=20),  # noqa: B008
+    cursor: datetime | None = Query(default=None),  # noqa: B008
+    db: Session = Depends(get_db),
+) -> SearchTagResponse:
+    return search_service.search_published_videos_by_tag(
+        db, tag, limit=limit, cursor=cursor
+    )
 
 
 @router.get("/videos/{video_id}/ai", response_model=AIResultResponse)
