@@ -413,3 +413,44 @@ textarea.text-input {
   }
 }
 
+
+
+.video-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.video-list-item {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  text-align: left;
+  color: var(--text);
+}
+
+.video-list-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  background: radial-gradient(circle at top, rgba(254, 44, 85, 0.4), rgba(20, 20, 20, 0.9));
+  display: grid;
+  place-items: center;
+}
+
+.video-list-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.video-list-info span {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
