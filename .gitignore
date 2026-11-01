@@ -59,3 +59,4 @@ backend/NSFW-Detection/src/models/
 
 # All local-only project data, credentials, datasets, and working instructions
 /local/
+/TestDataset/
