@@ -91,13 +91,11 @@ export default function UploadPage() {
         <aside className="panel info-panel">
           <div className="info-title">
             <Icon name="shield" size={17} />
-            <h2>Kiểm duyệt tự động</h2>
+            <h2>Hướng dẫn</h2>
           </div>
           <ul className="info-list">
-            <li>Hệ thống kiểm tra magic bytes và codec của tệp MP4 trước khi lưu.</li>
-            <li>Job AI chạy nền bằng FastAPI BackgroundTasks, frontend poll tới khi kết thúc.</li>
-            <li>Video chỉ xuất hiện ở feed sau khi phân tích xong.</li>
-            <li>Mọi người đều có thể báo cáo video để đưa vào hàng đợi kiểm duyệt.</li>
+            <li>Chỉ chấp nhận tệp MP4, tối đa 50MB.</li>
+            <li>Video chỉ xuất hiện ở feed sau khi được phê duyệt.</li>
           </ul>
         </aside>
       </div>
